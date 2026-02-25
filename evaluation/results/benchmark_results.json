@@ -1,0 +1,312 @@
+{
+  "seed": 42,
+  "episodes_per_scenario": 3,
+  "total_episodes": 24,
+  "aggregate": {
+    "detection": 1.0,
+    "localization": 0.875,
+    "diagnosis": 0.75,
+    "mitigation": 1.0,
+    "average": 0.90625
+  },
+  "per_scenario": {
+    "memory_leak_auth": {
+      "detection": 1.0,
+      "localization": 0.0,
+      "diagnosis": 0.0,
+      "mitigation": 1.0,
+      "average": 0.5
+    },
+    "cpu_saturation_order": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 1.0,
+      "mitigation": 1.0,
+      "average": 1.0
+    },
+    "brute_force_auth": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 1.0,
+      "mitigation": 1.0,
+      "average": 1.0
+    },
+    "transaction_stall_order": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 1.0,
+      "mitigation": 1.0,
+      "average": 1.0
+    },
+    "cascading_failure_gateway": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 1.0,
+      "mitigation": 1.0,
+      "average": 1.0
+    },
+    "deployment_regression_order": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 1.0,
+      "mitigation": 1.0,
+      "average": 1.0
+    },
+    "anomalous_access_userdb": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 0.0,
+      "mitigation": 1.0,
+      "average": 0.75
+    },
+    "ddos_gateway": {
+      "detection": 1.0,
+      "localization": 1.0,
+      "diagnosis": 1.0,
+      "mitigation": 1.0,
+      "average": 1.0
+    }
+  },
+  "raw_results": [
+    {
+      "scenario": "memory_leak_auth",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": false,
+      "diagnosis": false,
+      "mitigation": true,
+      "score": 0.5
+    },
+    {
+      "scenario": "memory_leak_auth",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": false,
+      "diagnosis": false,
+      "mitigation": true,
+      "score": 0.5
+    },
+    {
+      "scenario": "memory_leak_auth",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": false,
+      "diagnosis": false,
+      "mitigation": true,
+      "score": 0.5
+    },
+    {
+      "scenario": "cpu_saturation_order",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "cpu_saturation_order",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "cpu_saturation_order",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "brute_force_auth",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "brute_force_auth",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "brute_force_auth",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "transaction_stall_order",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "transaction_stall_order",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "transaction_stall_order",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "cascading_failure_gateway",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "cascading_failure_gateway",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "cascading_failure_gateway",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "deployment_regression_order",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "deployment_regression_order",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "deployment_regression_order",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "anomalous_access_userdb",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": false,
+      "mitigation": true,
+      "score": 0.75
+    },
+    {
+      "scenario": "anomalous_access_userdb",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": false,
+      "mitigation": true,
+      "score": 0.75
+    },
+    {
+      "scenario": "anomalous_access_userdb",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": false,
+      "mitigation": true,
+      "score": 0.75
+    },
+    {
+      "scenario": "ddos_gateway",
+      "episode": 0,
+      "seed": 42,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "ddos_gateway",
+      "episode": 1,
+      "seed": 43,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    },
+    {
+      "scenario": "ddos_gateway",
+      "episode": 2,
+      "seed": 44,
+      "detection": true,
+      "localization": true,
+      "diagnosis": true,
+      "mitigation": true,
+      "score": 1.0
+    }
+  ]
+}
