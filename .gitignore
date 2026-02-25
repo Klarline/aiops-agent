@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.joblib
+node_modules/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
