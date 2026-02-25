@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-from typing import Any
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.metrics import router as metrics_router

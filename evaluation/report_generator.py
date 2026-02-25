@@ -115,7 +115,7 @@ def _generate_markdown(results: dict, leaderboard: str, breakdown: dict) -> str:
 
     lines.extend([
         "",
-        f"## Configuration",
+        "## Configuration",
         f"- Seed: {results['seed']}",
         f"- Episodes per scenario: {results['episodes_per_scenario']}",
         f"- Total episodes: {results['total_episodes']}",

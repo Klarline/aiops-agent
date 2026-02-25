@@ -6,7 +6,6 @@ special handling for security events (IP blocking, audit trails).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
 from simulator.environment import SimulatedEnvironment, ActionResult

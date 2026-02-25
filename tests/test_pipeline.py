@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from simulator.environment import SimulatedEnvironment
-from simulator.fault_injector import FaultScenario
 from features.feature_extractor import extract_features_batch
 from detection.ensemble import EnsembleDetector
 from agent.agent import AIOpsAgent
@@ -13,7 +11,6 @@ from orchestrator.orchestrator import Orchestrator
 
 
 def _train_ensemble(seed: int = 42) -> EnsembleDetector:
-    env = SimulatedEnvironment(seed=seed)
     from simulator.service_topology import build_topology
     from simulator.metrics_generator import generate_metrics
     topology = build_topology()
@@ -33,7 +30,7 @@ class TestFullPipeline:
     def test_cpu_saturation_pipeline(self):
         ensemble = _train_ensemble()
         orch = Orchestrator(seed=42)
-        ctx = orch.init_problem("cpu_saturation_order")
+        orch.init_problem("cpu_saturation_order")
 
         agent = AIOpsAgent()
         agent.set_ensemble(ensemble)
@@ -44,7 +41,7 @@ class TestFullPipeline:
     def test_brute_force_pipeline(self):
         ensemble = _train_ensemble()
         orch = Orchestrator(seed=42)
-        ctx = orch.init_problem("brute_force_auth")
+        orch.init_problem("brute_force_auth")
 
         agent = AIOpsAgent()
         agent.set_ensemble(ensemble)
@@ -55,7 +52,7 @@ class TestFullPipeline:
     def test_transaction_stall_pipeline(self):
         ensemble = _train_ensemble()
         orch = Orchestrator(seed=42)
-        ctx = orch.init_problem("transaction_stall_order")
+        orch.init_problem("transaction_stall_order")
 
         agent = AIOpsAgent()
         agent.set_ensemble(ensemble)

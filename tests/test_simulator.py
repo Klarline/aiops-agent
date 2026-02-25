@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import numpy as np
 import networkx as nx
 import pandas as pd
 
 from simulator.service_topology import (
-    build_topology,
     get_upstream,
     get_downstream,
     get_blast_radius,
     METRIC_NAMES,
 )
 from simulator.metrics_generator import generate_metrics
-from simulator.fault_injector import inject_fault, FaultScenario
+from simulator.fault_injector import inject_fault
 from simulator.environment import SimulatedEnvironment
 
 

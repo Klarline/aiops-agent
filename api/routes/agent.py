@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 import numpy as np
 
-from simulator.environment import SimulatedEnvironment
 from orchestrator.orchestrator import Orchestrator
 from orchestrator.scenario_registry import list_scenarios
 from agent.agent import AIOpsAgent

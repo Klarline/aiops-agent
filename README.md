@@ -33,7 +33,7 @@ This project is inspired by [Microsoft Research's AIOpsLab framework](https://gi
 
 **What we built differently:**
 - Lightweight Python simulator instead of Kubernetes deployment (enables rapid experimentation)
-- Added security-focused fault scenarios (brute force, DDoS) — relevant to FCT's business
+- Added security-focused fault scenarios (brute force, DDoS)
 - Added business logic faults (transaction stall — the "silent failure")
 - Added SHAP explainability and natural language summaries
 - Included Q-learning for adaptive remediation

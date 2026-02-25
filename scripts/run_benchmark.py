@@ -30,7 +30,7 @@ def main():
     print(f"Running benchmark (seed={args.seed}, episodes/scenario={args.episodes})...")
     results = run_benchmark(seed=args.seed, episodes_per_scenario=args.episodes)
 
-    print(f"\nAggregate Results:")
+    print("\nAggregate Results:")
     agg = results["aggregate"]
     print(f"  Detection:    {agg['detection']:.0%}")
     print(f"  Localization: {agg['localization']:.0%}")
@@ -38,7 +38,7 @@ def main():
     print(f"  Mitigation:   {agg['mitigation']:.0%}")
     print(f"  Average:      {agg['average']:.0%}")
 
-    print(f"\nPer-Scenario:")
+    print("\nPer-Scenario:")
     for sid, scores in results["per_scenario"].items():
         print(
             f"  {sid:35s} Det={scores['detection']:.0%} Loc={scores['localization']:.0%} "

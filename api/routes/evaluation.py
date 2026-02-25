@@ -24,7 +24,7 @@ async def run_evaluation(req: BenchmarkRequest):
         episodes_per_scenario=req.episodes,
         max_steps=150,
     )
-    report = generate_report(results)
+    generate_report(results)
     return {
         "aggregate": results["aggregate"],
         "per_scenario": results["per_scenario"],

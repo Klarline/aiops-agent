@@ -12,7 +12,6 @@ import numpy as np
 
 from orchestrator.orchestrator import Orchestrator
 from orchestrator.scenario_registry import list_scenarios
-from orchestrator.problem_context import EvaluationResult
 from agent.agent import AIOpsAgent
 from features.feature_extractor import extract_features_batch
 from detection.ensemble import EnsembleDetector
@@ -55,7 +54,7 @@ def run_benchmark(
         for ep in range(episodes_per_scenario):
             ep_seed = seed + ep
             orch = Orchestrator(seed=ep_seed)
-            ctx = orch.init_problem(scenario_id)
+            orch.init_problem(scenario_id)
 
             agent = AIOpsAgent()
             agent.set_ensemble(ensemble)

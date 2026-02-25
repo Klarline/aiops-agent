@@ -9,11 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import networkx as nx
 
-from simulator.service_topology import build_topology, METRIC_NAMES
+from simulator.service_topology import build_topology
 from simulator.metrics_generator import generate_metrics
 from simulator.fault_injector import FaultScenario, inject_fault
 

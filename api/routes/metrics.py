@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from simulator.environment import SimulatedEnvironment
-from orchestrator.scenario_registry import list_scenarios, get_scenario
 
 router = APIRouter()
 

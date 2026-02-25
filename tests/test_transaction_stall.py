@@ -13,8 +13,6 @@ from simulator.fault_injector import FaultScenario
 from features.feature_extractor import extract_features, extract_features_batch
 from detection.ensemble import EnsembleDetector
 from diagnosis.diagnoser import FaultDiagnoser
-from simulator.metrics_generator import generate_metrics
-from simulator.service_topology import build_topology
 
 
 class TestTransactionStall:

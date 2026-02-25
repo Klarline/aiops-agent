@@ -6,7 +6,7 @@ problem setup, action execution, and 4-task evaluation.
 
 from __future__ import annotations
 
-from simulator.environment import SimulatedEnvironment, Observation, ActionResult
+from simulator.environment import SimulatedEnvironment, Observation
 from orchestrator.scenario_registry import get_scenario
 from orchestrator.problem_context import (
     ProblemContext,

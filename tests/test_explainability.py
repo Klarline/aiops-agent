@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from features.feature_extractor import extract_features, extract_features_batch, get_feature_names
+from features.feature_extractor import extract_features_batch, get_feature_names
 from detection.explainer import ShapExplainer
 from detection.isolation_forest import IsolationForestDetector
 

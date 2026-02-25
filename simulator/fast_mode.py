@@ -11,8 +11,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from simulator.fault_injector import FaultScenario
-
 FAULT_TYPES = [
     "memory_leak", "cpu_saturation", "brute_force", "transaction_stall",
     "cascading_failure", "deployment_regression", "anomalous_access", "ddos",

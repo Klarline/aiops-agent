@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from simulator.service_topology import build_topology
 from simulator.metrics_generator import generate_metrics
 from simulator.fault_injector import inject_fault, FaultScenario
-from features.feature_extractor import extract_features_batch, get_feature_names
+from features.feature_extractor import extract_features_batch
 from detection.ensemble import EnsembleDetector
 
 

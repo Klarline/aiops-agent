@@ -8,10 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
-
-from simulator.service_topology import METRIC_NAMES
 
 
 @dataclass
@@ -98,7 +95,6 @@ class FaultDiagnoser:
         self, current, history, service, all_metrics
     ) -> Diagnosis | None:
         req = current.get("request_rate", 0)
-        cpu = current.get("cpu_percent", 0)
         lat = current.get("latency_p50_ms", 0)
 
         if req > 1500 and ("gateway" in service or "api" in service):

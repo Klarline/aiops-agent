@@ -18,7 +18,7 @@ from simulator.service_topology import get_blast_radius
 from orchestrator.problem_context import AgentAction
 from features.feature_extractor import extract_features, get_feature_names
 from detection.ensemble import EnsembleDetector, AnomalyResult
-from detection.explainer import ShapExplainer, ShapExplanation
+from detection.explainer import ShapExplainer
 from diagnosis.localizer import ServiceLocalizer
 from diagnosis.diagnoser import FaultDiagnoser, Diagnosis
 from decision.rule_policy import RuleBasedPolicy
