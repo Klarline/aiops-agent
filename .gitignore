@@ -8,3 +8,11 @@ dist/
 venv/
 .pytest_cache/
 .DS_Store
+
+# Generated evaluation artifact
+evaluation/results/leaderboard_results.json
+# Keep benchmark_results.json tracked for reproducibility snapshots.
+# If this becomes too noisy, switch to ignoring it and only keep expected_results.json.
+
+# Generated RL training artifact
+detection/models/*.npy

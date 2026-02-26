@@ -1,0 +1,189 @@
+"""Shared state between API routes.
+
+Single source of truth for the orchestrator, agent, and ensemble
+so that metrics, agent, and evaluation routes all reference the same simulation.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import numpy as np
+
+from orchestrator.orchestrator import Orchestrator
+from agent.agent import AIOpsAgent
+from features.feature_extractor import extract_features_batch, extract_features, get_feature_names
+from detection.ensemble import EnsembleDetector
+from detection.explainer import ShapExplainer
+from simulator.service_topology import build_topology
+from simulator.metrics_generator import generate_metrics
+
+import pandas as pd
+
+
+class SimState:
+    """Mutable simulation state shared across all API routes."""
+
+    def __init__(self):
+        self.orchestrator: Orchestrator | None = None
+        self.agent: AIOpsAgent | None = None
+        self.ensemble: EnsembleDetector | None = None
+        self.explainer: ShapExplainer | None = None
+        self.running: bool = False
+        self.metrics_history: list[dict[str, dict[str, float]]] = []
+        self.anomaly_timeline: list[dict[str, Any]] = []
+        self.detection_step: int = -1
+        self.feature_names: list[str] = get_feature_names()
+
+    def ensure_ensemble(self) -> EnsembleDetector:
+        if self.ensemble is None:
+            topology = build_topology()
+            metrics = generate_metrics(topology, 3600, 10, seed=42)
+            all_feats = []
+            for svc, df in metrics.items():
+                feats = extract_features_batch(df, window_size=6)
+                all_feats.append(feats)
+            features = np.vstack(all_feats)
+            features = features[~np.isnan(features).any(axis=1)]
+            self.ensemble = EnsembleDetector()
+            self.ensemble.fit(features)
+            self.explainer = ShapExplainer(
+                self.ensemble.iso_detector.model, self.feature_names,
+            )
+        return self.ensemble
+
+    def reset(self, scenario_id: str, seed: int = 42):
+        ensemble = self.ensure_ensemble()
+        orch = Orchestrator(seed=seed)
+        ctx = orch.init_problem(scenario_id)
+
+        agent = AIOpsAgent()
+        agent.set_ensemble(ensemble)
+
+        self.orchestrator = orch
+        self.agent = agent
+        self.running = True
+        self.metrics_history = []
+        self.anomaly_timeline = []
+        self.detection_step = -1
+        return ctx
+
+    def step_once(self) -> dict[str, Any] | None:
+        """Advance one step. Returns step data or None if scenario ended."""
+        orch = self.orchestrator
+        agent = self.agent
+        if orch is None or agent is None:
+            return None
+
+        obs = orch.env.step()
+        if obs is None:
+            self.running = False
+            return None
+
+        action = agent.get_action(obs)
+
+        snapshot = obs.metrics
+        self.metrics_history.append(snapshot)
+
+        per_svc_scores = {}
+        per_svc_features = {}
+        if agent.ensemble is not None and hasattr(agent, '_metrics_history'):
+            for svc in snapshot:
+                hist = agent._metrics_history.get(svc, [])
+                if len(hist) >= 6:
+                    df = pd.DataFrame(hist)
+                    features = extract_features(df, window_size=6)
+                    result = agent.ensemble.detect(features)
+                    per_svc_scores[svc] = result.score
+                    per_svc_features[svc] = features
+
+        self.anomaly_timeline.append({
+            "step": obs.step_index,
+            "scores": {s: round(v, 4) for s, v in per_svc_scores.items()},
+        })
+
+        resolved = False
+        if action.action != "continue_monitoring":
+            if self.detection_step < 0:
+                self.detection_step = obs.step_index
+
+            orch._agent_detected = True
+            orch._agent_localized = action.target
+            orch._agent_diagnosed = action.details.get("diagnosis", "")
+            orch.env.execute_action(action.action, action.target, **action.details)
+            orch._agent_mitigated = orch.env.is_resolved()
+            resolved = orch.env.is_resolved()
+            if resolved:
+                self.running = False
+
+            orch.history.append({
+                "action": action,
+                "step": orch.env.current_step,
+            })
+
+        return {
+            "step": obs.step_index,
+            "action": action.action,
+            "target": action.target,
+            "explanation": action.explanation,
+            "confidence": action.confidence,
+            "diagnosis": action.details.get("diagnosis", ""),
+            "metrics": snapshot,
+            "anomaly_scores": per_svc_scores,
+            "resolved": resolved,
+        }
+
+    def get_shap_values(self, service: str | None = None) -> dict[str, Any]:
+        """Get real SHAP explanations for the most anomalous service."""
+        agent = self.agent
+        if agent is None or agent.ensemble is None or self.explainer is None:
+            return {"features": [], "service": ""}
+
+        target_svc = service
+        if target_svc is None and agent._metrics_history:
+            best_score = -1.0
+            for svc, hist in agent._metrics_history.items():
+                if len(hist) >= 6:
+                    df = pd.DataFrame(hist)
+                    features = extract_features(df, window_size=6)
+                    result = agent.ensemble.detect(features)
+                    if result.score > best_score:
+                        best_score = result.score
+                        target_svc = svc
+
+        if target_svc is None or target_svc not in agent._metrics_history:
+            return {"features": [], "service": ""}
+
+        hist = agent._metrics_history[target_svc]
+        if len(hist) < 6:
+            return {"features": [], "service": target_svc}
+
+        df = pd.DataFrame(hist)
+        features = extract_features(df, window_size=6)
+        explanation = self.explainer.explain(features, top_k=10)
+
+        shap_features = [
+            {"name": name, "value": round(val, 4)}
+            for name, val in explanation.top_features
+        ]
+        all_values = {k: round(v, 4) for k, v in explanation.all_values.items()}
+
+        return {
+            "service": target_svc,
+            "features": shap_features,
+            "all_values": all_values,
+        }
+
+    def get_full_history(self) -> list[dict]:
+        """Return full metrics history for time-series display."""
+        result = []
+        for i, snapshot in enumerate(self.metrics_history):
+            entry = {"step": i}
+            for svc, metrics in snapshot.items():
+                for metric, val in metrics.items():
+                    entry[f"{svc}__{metric}"] = round(val, 2)
+            result.append(entry)
+        return result
+
+
+state = SimState()

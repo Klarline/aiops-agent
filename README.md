@@ -42,27 +42,33 @@ This project is inspired by [Microsoft Research's AIOpsLab framework](https://gi
 
 ```
 Orchestrator (ACI Pattern)
-├── Agent (Observe → Think → Act)
-│   ├── Detection: Isolation Forest + Statistical ensemble
-│   ├── Explanation: SHAP feature attribution + NL summaries
-│   ├── Localization: Dependency graph traversal + lag correlation
-│   ├── Diagnosis: Pattern-based fault classification
-│   └── Decision: Rule-based policy + Q-learning upgrade
+├── LLM Agent (ReAct: Reason → Act → Observe)
+│   ├── Tool: get_metrics       → Ensemble anomaly detector
+│   ├── Tool: explain_anomaly   → SHAP feature attribution
+│   ├── Tool: localize_root_cause → Dependency graph traversal
+│   ├── Tool: diagnose          → Pattern-based fault classifier
+│   ├── Tool: restart/scale/block/rollback → Remediation actions
+│   └── Fallback: Rule-based policy (always available)
 └── Simulated Environment
     ├── 5 microservices with dependency graph
     ├── 8 metrics per service (including TPM)
     └── 8 fault types (operational, security, business logic)
 ```
 
+The LLM agent reasons step-by-step, calling ML modules as tools. When the LLM is unavailable or errors, the agent seamlessly falls back to a reliable rule-based pipeline.
+
 ## AI Techniques
 
-| Technique | Purpose | Why Not Just Use an LLM? |
-|-----------|---------|--------------------------|
-| Isolation Forest | Anomaly detection | Trained on actual data distribution, not prompt engineering |
-| Statistical Z-score + CUSUM | Drift detection | Mathematically rigorous for gradual changes (memory leaks) |
-| SHAP | Explainability | Feature-level attribution, not black-box reasoning |
-| Q-learning | Adaptive remediation | Learns from outcomes, improves over time |
-| NetworkX graph traversal | Root cause localization | Structural reasoning about service dependencies |
+| Technique | Why This, Not Something Else |
+|-----------|------------------------------|
+| **LLM ReAct Agent** | A fixed detect→localize→diagnose pipeline can't adapt investigation order. The LLM decides *what* to investigate (e.g., check topology before diagnosing during cascading failures). Falls back to rules if unavailable. |
+| **Isolation Forest** | Operates in 32-dimensional feature space — catches multivariate anomalies where no single metric exceeds a threshold. Robust to dimensionality via random partitioning. |
+| **Statistical Z-score + CUSUM** | IF has a blind spot for gradual drift. CUSUM accumulates small deviations over time — exactly the memory leak signature IF misses. Model disagreement = calibrated uncertainty. |
+| **SHAP TreeExplainer** | Game-theoretic feature attribution with provable properties (local accuracy, consistency). Tells operators *why* an alert fired: "error_rate_zscore +4.2 contributed +0.38 to the anomaly score." |
+| **Q-learning RL** | Learns remediation policy from outcomes (reward = correct action). Only replaces rule-based policy if it demonstrates >50% improvement — documented upgrade path, not premature optimization. |
+| **NetworkX graph traversal** | Service dependencies form a DAG. Root cause localization uses BFS from source nodes to find the most-upstream anomalous service — structural reasoning, not statistical correlation. |
+
+The LLM decides *what* to investigate and *when* to act. The ML models provide the actual measurements it reasons about. See [DESIGN.md](DESIGN.md) for in-depth rationale behind each choice.
 
 ## Fault Scenarios (8 Total)
 
@@ -77,11 +83,18 @@ Orchestrator (ACI Pattern)
 | Security | DDoS | Volume spike + rate limiting |
 | Business Logic | **Transaction stall** | **Silent failure — infra healthy, business broken** |
 
-## Results
+## Results (Reproducible)
 
-Run `python scripts/run_benchmark.py --seed 42` to reproduce.
+```
+AGENT                 DETECTION  LOCALIZATION  DIAGNOSIS  MITIGATION  AVERAGE
+ML Ensemble Agent         100%          97%       95%       100%   98.1%
+Static Threshold           43%          38%       12%        25%   29.6%
+Random Agent               62%          12%       12%        62%   37.5%
+```
 
-See [EVALUATION.md](EVALUATION.md) for full results with per-scenario breakdown.
+The **68-point gap** between the ML agent and a static threshold baseline proves the architecture works. Run `python scripts/run_benchmark.py --leaderboard` to reproduce. 6/8 scenarios score 100% across all tasks; the two weaker scenarios (anomalous access 77% diagnosis, memory leak 92% localization) are analyzed honestly in [EVALUATION.md](EVALUATION.md).
+
+See [TUNING_LOG.md](TUNING_LOG.md) for the iteration history from v1 (F1=0.62) through v7 (98% average).
 
 ## Security Features
 
@@ -107,14 +120,26 @@ pytest tests/ -m "slow" -v              # Full benchmark
 
 ## Tech Stack
 
-Python 3.11 · FastAPI · scikit-learn · NumPy · Pandas · SHAP · NetworkX · React TypeScript · Recharts · Docker · GitHub Actions · Pytest
+Python 3.11 · OpenAI · FastAPI · scikit-learn · NumPy · Pandas · SHAP · NetworkX · React TypeScript · Recharts · Docker · GitHub Actions · Pytest
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env                    # Add your OPENAI_API_KEY (optional)
 python scripts/train_models.py          # Train detection models
 python scripts/train_rl_agent.py        # Train RL agent
 python scripts/run_benchmark.py --fast  # Quick benchmark
 python -m uvicorn api.main:app --reload # Start API
 ```
+
+## Agent Guardrail Configuration
+
+Two optional environment variables control autonomous remediation limits:
+
+- `AIOPS_MAX_ACTIONS` (default: `3`): maximum autonomous actions per episode
+- `AIOPS_BUDGET_EXHAUSTED_ACTION` (default: `continue_monitoring`): behavior after budget is exhausted while anomaly persists
+  - `continue_monitoring`: stop autonomous actions and keep monitoring
+  - `alert_human`: immediately escalate to a human operator
+
+These settings are useful for tuning safety posture during evaluation and demos.

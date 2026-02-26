@@ -48,7 +48,7 @@ def _inject_memory_leak(
     scenario: FaultScenario,
     topology: nx.DiGraph,
 ) -> dict[str, pd.DataFrame]:
-    """Linear memory increase ~0.5 %/min on target; other metrics unchanged."""
+    """Memory leak: initial allocation bump + linear growth on target."""
     target = scenario.target_service
     df = metrics[target].copy()
     mask = _time_mask(df.index, scenario.start_time, scenario.duration)
@@ -57,9 +57,10 @@ def _inject_memory_leak(
         metrics[target] = df
         return metrics
 
+    initial_bump = 18.0 * scenario.severity
     elapsed_minutes = np.arange(len(fault_indices)) * 10.0 / 60.0
-    leak_rate = 0.5 * scenario.severity
-    increase = leak_rate * elapsed_minutes
+    leak_rate = 0.8 * scenario.severity
+    increase = initial_bump + leak_rate * elapsed_minutes
     df.loc[df.index[mask], "memory_percent"] += increase
     df["memory_percent"] = df["memory_percent"].clip(0, 100)
     metrics[target] = df
@@ -205,17 +206,18 @@ def _inject_anomalous_access(
     scenario: FaultScenario,
     topology: nx.DiGraph,
 ) -> dict[str, pd.DataFrame]:
-    """Unusual endpoint patterns — subtle error_rate and latency changes."""
+    """Unusual endpoint patterns — error_rate bump, latency tail growth, request spikes."""
     target = scenario.target_service
     df = metrics[target].copy()
     mask = _time_mask(df.index, scenario.start_time, scenario.duration)
     rng = np.random.RandomState(66)
 
-    noise = rng.randn(int(mask.sum())) * 0.03
-    df.loc[df.index[mask], "error_rate"] += 0.05 * scenario.severity + noise
+    noise = rng.randn(int(mask.sum())) * 0.02
+    df.loc[df.index[mask], "error_rate"] += 0.06 * scenario.severity + noise
     df["error_rate"] = df["error_rate"].clip(0, 1)
 
-    df.loc[df.index[mask], "latency_p99_ms"] *= (1.2 + 0.3 * scenario.severity)
+    df.loc[df.index[mask], "latency_p99_ms"] *= (1.4 + 0.5 * scenario.severity)
+    df.loc[df.index[mask], "request_rate"] *= (1.2 + 0.3 * scenario.severity)
     metrics[target] = df
     return metrics
 

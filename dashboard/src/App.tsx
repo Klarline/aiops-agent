@@ -1,22 +1,62 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import MetricsPanel from './components/MetricsPanel';
-import AlertTimeline from './components/AlertTimeline';
 import ShapExplainer from './components/ShapExplainer';
-import AlertSummary from './components/AlertSummary';
 import AgentLog from './components/AgentLog';
+import IncidentComparison from './components/IncidentComparison';
+import EvalBadge from './components/EvalBadge';
 
 const API = 'http://localhost:8000';
+const WS_URL = 'ws://localhost:8000/agent/ws';
 
-function App() {
+interface StepData {
+  step: number;
+  metrics: Record<string, Record<string, number>>;
+  anomaly_scores: Record<string, number>;
+  action: string;
+  target?: string;
+  diagnosis?: string;
+  explanation?: string;
+  confidence?: number;
+}
+
+interface ShapData {
+  service: string;
+  features: { name: string; value: number }[];
+  all_values?: Record<string, number>;
+}
+
+interface EvalResult {
+  detection: boolean;
+  localization: boolean;
+  diagnosis: boolean;
+  mitigation: boolean;
+  score: number;
+  details?: Record<string, string>;
+}
+
+type TabId = 'live' | 'compare';
+
+export default function App() {
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [selectedScenario, setSelectedScenario] = useState('');
   const [selectedService, setSelectedService] = useState('api-gateway');
   const [services, setServices] = useState<string[]>([]);
-  const [metrics, setMetrics] = useState<Record<string, Record<string, number>>>({});
+  const [tab, setTab] = useState<TabId>('live');
+
+  const [metricsTimeline, setMetricsTimeline] = useState<StepData[]>([]);
   const [agentLog, setAgentLog] = useState<any[]>([]);
-  const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState('idle');
-  const [evalResult, setEvalResult] = useState<any>(null);
+  const [reasoningChain, setReasoningChain] = useState<any[]>([]);
+  const [shapData, setShapData] = useState<ShapData | null>(null);
+  const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
+  const [detectionStep, setDetectionStep] = useState(-1);
+
+  const [streaming, setStreaming] = useState(false);
+  const [status, setStatus] = useState('Select a scenario to begin');
+  const [currentStep, setCurrentStep] = useState(0);
+  const [speed, setSpeed] = useState(60);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const abortRef = useRef(false);
 
   useEffect(() => {
     fetch(`${API}/agent/scenarios`)
@@ -25,110 +65,237 @@ function App() {
       .catch(() => {});
   }, []);
 
-  const startScenario = useCallback(async () => {
-    if (!selectedScenario) return;
-    setStatus('starting...');
+  const resetState = useCallback(() => {
+    setMetricsTimeline([]);
     setAgentLog([]);
+    setReasoningChain([]);
+    setShapData(null);
     setEvalResult(null);
-    const res = await fetch(`${API}/agent/scenarios/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario_id: selectedScenario }),
-    });
-    const data = await res.json();
-    setServices(data.services || []);
-    setRunning(true);
-    setStatus(`Running: ${data.description}`);
-  }, [selectedScenario]);
-
-  const runSteps = useCallback(async (n: number) => {
-    const res = await fetch(`${API}/agent/step?n_steps=${n}`, { method: 'POST' });
-    const data = await res.json();
-    setRunning(data.running);
-
-    const metricsRes = await fetch(`${API}/metrics/current`);
-    const metricsData = await metricsRes.json();
-    setMetrics(metricsData);
-
-    const logRes = await fetch(`${API}/agent/log`);
-    const logData = await logRes.json();
-    setAgentLog(logData.log || []);
-
-    if (!data.running) setStatus('Scenario complete');
+    setDetectionStep(-1);
+    setCurrentStep(0);
+    abortRef.current = false;
   }, []);
 
-  const evaluate = useCallback(async () => {
-    const res = await fetch(`${API}/agent/evaluate`);
-    const data = await res.json();
-    setEvalResult(data);
+  const runScenarioWs = useCallback(() => {
+    if (!selectedScenario) return;
+    resetState();
+    setStreaming(true);
+    setStatus('Connecting...');
+
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        scenario_id: selectedScenario,
+        speed_ms: speed,
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === 'init') {
+        setServices(msg.services);
+        setStatus(`Running: ${msg.description}`);
+      } else if (msg.type === 'step') {
+        setCurrentStep(msg.step);
+        setMetricsTimeline(prev => [...prev, msg as StepData]);
+      } else if (msg.type === 'detection') {
+        setCurrentStep(msg.step);
+        setDetectionStep(msg.step);
+        setMetricsTimeline(prev => [...prev, msg as StepData]);
+        if (msg.shap) setShapData(msg.shap);
+        if (msg.log) setAgentLog(msg.log);
+        if (msg.reasoning_chain) setReasoningChain(msg.reasoning_chain);
+        setStatus(`Detected: ${msg.diagnosis?.replace(/_/g, ' ')} on ${msg.target}`);
+      } else if (msg.type === 'complete') {
+        setStreaming(false);
+        if (msg.evaluation) setEvalResult(msg.evaluation);
+        if (msg.detection_step > 0) setDetectionStep(msg.detection_step);
+        setStatus('Scenario complete');
+      } else if (msg.type === 'error') {
+        setStreaming(false);
+        setStatus(`Error: ${msg.message}`);
+      }
+    };
+
+    ws.onerror = () => {
+      setStreaming(false);
+      setStatus('WebSocket error — falling back to HTTP');
+      runScenarioHttp();
+    };
+
+    ws.onclose = () => {
+      setStreaming(false);
+    };
+  }, [selectedScenario, speed, resetState]);
+
+  const runScenarioHttp = useCallback(async () => {
+    if (!selectedScenario) return;
+    resetState();
+    setStreaming(true);
+    setStatus('Starting scenario...');
+
+    try {
+      const startRes = await fetch(`${API}/agent/scenarios/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario_id: selectedScenario }),
+      });
+      const startData = await startRes.json();
+      setServices(startData.services || []);
+      setStatus(`Running: ${startData.description}`);
+
+      let running = true;
+      while (running && !abortRef.current) {
+        const res = await fetch(`${API}/agent/step?n_steps=5`, { method: 'POST' });
+        const data = await res.json();
+        running = data.running;
+
+        if (data.steps) {
+          setMetricsTimeline(prev => [...prev, ...data.steps]);
+          const lastStep = data.steps[data.steps.length - 1];
+          setCurrentStep(lastStep.step);
+        }
+        if (data.detection_step > 0) setDetectionStep(data.detection_step);
+
+        const logRes = await fetch(`${API}/agent/log`);
+        const logData = await logRes.json();
+        if (logData.log?.length > 0) setAgentLog(logData.log);
+        if (logData.reasoning_chain?.length > 0) setReasoningChain(logData.reasoning_chain);
+
+        const shapRes = await fetch(`${API}/agent/shap`);
+        const shapJson = await shapRes.json();
+        if (shapJson.features?.length > 0) setShapData(shapJson);
+
+        await new Promise(r => setTimeout(r, speed));
+      }
+
+      const evalRes = await fetch(`${API}/agent/evaluate`);
+      const evalData = await evalRes.json();
+      setEvalResult(evalData);
+      setStatus('Scenario complete');
+    } catch (e: any) {
+      setStatus(`Error: ${e.message}`);
+    } finally {
+      setStreaming(false);
+    }
+  }, [selectedScenario, speed, resetState]);
+
+  const stopScenario = useCallback(() => {
+    abortRef.current = true;
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setStreaming(false);
+    setStatus('Stopped');
   }, []);
 
-  const latestAlert = agentLog.length > 0 ? agentLog[agentLog.length - 1] : null;
+  const latestMetrics: Record<string, Record<string, number>> =
+    metricsTimeline.length > 0
+      ? metricsTimeline[metricsTimeline.length - 1].metrics
+      : {};
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>AIOps Agent Dashboard</h1>
-        <span className="subtitle">AIOpsLab-aligned Autonomous Agent</span>
+        <div className="header-left">
+          <h1>AIOps Agent</h1>
+          <span className="subtitle">Autonomous Cloud Operations</span>
+        </div>
+        <div className="header-tabs">
+          <button className={`tab ${tab === 'live' ? 'active' : ''}`} onClick={() => setTab('live')}>
+            Live Demo
+          </button>
+          <button className={`tab ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>
+            Agent vs Baseline
+          </button>
+        </div>
       </header>
 
-      <div className="controls">
-        <select value={selectedScenario} onChange={e => setSelectedScenario(e.target.value)}>
-          <option value="">Select scenario...</option>
-          {scenarios.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-        </select>
-        <button onClick={startScenario} disabled={!selectedScenario}>Start</button>
-        <button onClick={() => runSteps(10)} disabled={!running}>Run 10 Steps</button>
-        <button onClick={() => runSteps(50)} disabled={!running}>Run 50 Steps</button>
-        <button onClick={evaluate}>Evaluate</button>
-        <select value={selectedService} onChange={e => setSelectedService(e.target.value)}>
-          {(services.length > 0 ? services : ['api-gateway', 'auth-service', 'order-service', 'user-db', 'order-db']).map(s =>
-            <option key={s} value={s}>{s}</option>
-          )}
-        </select>
-      </div>
+      {tab === 'live' ? (
+        <>
+          <div className="controls-bar">
+            <select
+              value={selectedScenario}
+              onChange={e => setSelectedScenario(e.target.value)}
+              className="scenario-select"
+            >
+              <option value="">Select scenario...</option>
+              {scenarios.map(s => (
+                <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
 
-      <div className="status-bar">{status}</div>
+            <div className="speed-control">
+              <label>Speed</label>
+              <input
+                type="range" min={10} max={200} value={speed}
+                onChange={e => setSpeed(Number(e.target.value))}
+              />
+              <span>{speed}ms</span>
+            </div>
 
-      {evalResult && (
-        <div className="panel eval-panel">
-          <h3>Evaluation (AIOpsLab Tasks)</h3>
-          <div className="eval-grid">
-            <div className={`eval-item ${evalResult.detection ? 'pass' : 'fail'}`}>
-              Detection: {evalResult.detection ? 'PASS' : 'FAIL'}
-            </div>
-            <div className={`eval-item ${evalResult.localization ? 'pass' : 'fail'}`}>
-              Localization: {evalResult.localization ? 'PASS' : 'FAIL'}
-            </div>
-            <div className={`eval-item ${evalResult.diagnosis ? 'pass' : 'fail'}`}>
-              Diagnosis: {evalResult.diagnosis ? 'PASS' : 'FAIL'}
-            </div>
-            <div className={`eval-item ${evalResult.mitigation ? 'pass' : 'fail'}`}>
-              Mitigation: {evalResult.mitigation ? 'PASS' : 'FAIL'}
+            {!streaming ? (
+              <button className="btn btn-primary" onClick={runScenarioWs} disabled={!selectedScenario}>
+                Run Full Scenario
+              </button>
+            ) : (
+              <button className="btn btn-danger" onClick={stopScenario}>
+                Stop
+              </button>
+            )}
+
+            <select
+              value={selectedService}
+              onChange={e => setSelectedService(e.target.value)}
+              className="service-select"
+            >
+              {(services.length > 0 ? services : ['api-gateway', 'auth-service', 'order-service', 'user-db', 'order-db']).map(s =>
+                <option key={s} value={s}>{s}</option>
+              )}
+            </select>
+
+            <div className="step-indicator">
+              Step {currentStep}
+              {detectionStep > 0 && (
+                <span className="detection-badge">Detected @ {detectionStep}</span>
+              )}
             </div>
           </div>
-        </div>
-      )}
 
-      <div className="main-grid">
-        <MetricsPanel data={metrics} selectedService={selectedService} />
-        {latestAlert && (
-          <AlertSummary
-            summary={latestAlert.summary}
-            diagnosis={latestAlert.diagnosis}
-            severity={latestAlert.confidence > 0.8 ? 'critical' : latestAlert.confidence > 0.5 ? 'high' : 'medium'}
-          />
-        )}
-        <ShapExplainer features={latestAlert ? [
-          { name: 'feature_1', value: latestAlert.confidence },
-          { name: 'feature_2', value: latestAlert.confidence * 0.7 },
-          { name: 'feature_3', value: latestAlert.confidence * 0.4 },
-        ] : []} />
-        <AlertTimeline alerts={agentLog} />
-        <AgentLog log={agentLog} />
-      </div>
+          <div className="status-bar">
+            <span className={`status-dot ${streaming ? 'live' : detectionStep > 0 ? 'detected' : 'idle'}`} />
+            {status}
+          </div>
+
+          {evalResult && <EvalBadge result={evalResult} detectionStep={detectionStep} />}
+
+          <div className="dashboard-grid">
+            <div className="grid-metrics">
+              <MetricsPanel
+                timeline={metricsTimeline}
+                selectedService={selectedService}
+                allServices={services.length > 0 ? services : ['api-gateway', 'auth-service', 'order-service', 'user-db', 'order-db']}
+                detectionStep={detectionStep}
+                latestMetrics={latestMetrics}
+              />
+            </div>
+
+            <div className="grid-sidebar">
+              <ShapExplainer data={shapData} />
+              <AgentLog log={agentLog} reasoningChain={reasoningChain} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <IncidentComparison
+          scenarios={scenarios}
+          apiBase={API}
+        />
+      )}
     </div>
   );
 }
-
-export default App;

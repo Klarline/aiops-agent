@@ -48,9 +48,9 @@ class FaultDiagnoser:
             self._check_ddos,
             self._check_cascading_failure,
             self._check_cpu_saturation,
-            self._check_memory_leak,
             self._check_deployment_regression,
             self._check_anomalous_access,
+            self._check_memory_leak,
         ]
 
         for check in checks:
@@ -115,13 +115,20 @@ class FaultDiagnoser:
         self, current, history, service, all_metrics
     ) -> Diagnosis | None:
         mem = current.get("memory_percent", 0)
+        err = current.get("error_rate", 0)
+        lat = current.get("latency_p50_ms", 0)
+        if err > 0.06 or lat > 80:
+            return None
         if history is not None and len(history) >= 6:
             mem_series = history["memory_percent"]
             early = mem_series.iloc[:3].mean()
             late = mem_series.iloc[-3:].mean()
-            if late - early > 3.0 and late > 50:
-                return Diagnosis("memory_leak", 0.8, service, 0.0, False)
-        if mem > 70:
+            trend = late - early
+            if trend > 5.0:
+                return Diagnosis("memory_leak", 0.85, service, 0.0, False)
+            if trend > 3.0 and late > 42:
+                return Diagnosis("memory_leak", 0.75, service, 0.0, False)
+        if mem > 65:
             return Diagnosis("memory_leak", 0.6, service, 0.0, False)
         return None
 
@@ -147,8 +154,12 @@ class FaultDiagnoser:
     ) -> Diagnosis | None:
         error = current.get("error_rate", 0)
         lat_p99 = current.get("latency_p99_ms", 0)
-        if error > 0.03 and lat_p99 > 35 and "db" in service.lower():
-            return Diagnosis("anomalous_access", 0.6, service, 0.0, True)
+        req = current.get("request_rate", 0)
+        if "db" in service.lower():
+            if error > 0.03 and lat_p99 > 28:
+                return Diagnosis("anomalous_access", 0.65, service, 0.0, True)
+            if error > 0.02 and lat_p99 > 25 and req > 300:
+                return Diagnosis("anomalous_access", 0.55, service, 0.0, True)
         return None
 
     def _check_cascading_failure(

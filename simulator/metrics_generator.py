@@ -1,7 +1,7 @@
 """Realistic time-series metrics generator for simulated microservices.
 
 Generates 8 metrics per service with diurnal patterns, Gaussian noise,
-and cross-service correlation.
+and cross-service correlation that propagates through the dependency graph.
 """
 
 from __future__ import annotations
@@ -25,6 +25,9 @@ METRIC_RANGES: dict[str, tuple[float, float]] = {
     "transactions_per_minute": (0.0, float("inf")),
 }
 
+PROPAGATION_DELAY_STEPS = 2
+PROPAGATION_FACTOR = 0.7
+
 
 def _diurnal_factor(timestamp_seconds: np.ndarray) -> np.ndarray:
     """Compute diurnal multiplier: peak at hour 12, trough at hour 3."""
@@ -40,6 +43,10 @@ def generate_metrics(
 ) -> dict[str, pd.DataFrame]:
     """Generate normal (non-faulty) metrics for all services.
 
+    Downstream services see correlated request_rate, latency, and CPU
+    fluctuations from their upstream dependencies, with realistic
+    propagation delay (20s) and attenuation (70% of upstream variance).
+
     Returns:
         Dict mapping service name to DataFrame with metric columns
         and DatetimeIndex timestamps.
@@ -52,14 +59,13 @@ def generate_metrics(
         freq=f"{interval_seconds}s",
     )
     ts_seconds = np.arange(n_steps) * interval_seconds
-
     diurnal = _diurnal_factor(ts_seconds)
-
-    gateway_request_noise = rng.randn(n_steps) * 0.05
 
     result: dict[str, pd.DataFrame] = {}
 
-    for service in topology.nodes:
+    generation_order = list(nx.topological_sort(topology))
+
+    for service in generation_order:
         attrs = topology.nodes[service]
         baseline = attrs["baseline"]
         data: dict[str, np.ndarray] = {}
@@ -70,17 +76,52 @@ def generate_metrics(
             noise = rng.randn(n_steps) * noise_std
             values = base * diurnal + noise
 
-            if metric == "request_rate" and service != "api-gateway":
-                gw_baseline = topology.nodes["api-gateway"]["baseline"]["request_rate"]
-                ratio = base / gw_baseline if gw_baseline > 0 else 0.5
-                gw_modulation = 1.0 + gateway_request_noise
-                values = base * diurnal * gw_modulation * ratio / ratio + noise
-                values = base * diurnal * (1.0 + gateway_request_noise) + noise
-
             lo, hi = METRIC_RANGES[metric]
             values = np.clip(values, lo, hi)
             data[metric] = values
 
         result[service] = pd.DataFrame(data, index=timestamps)
+
+    for service in generation_order:
+        predecessors = list(topology.predecessors(service))
+        if not predecessors:
+            continue
+
+        df = result[service]
+        baseline = topology.nodes[service]["baseline"]
+
+        for upstream in predecessors:
+            up_df = result[upstream]
+            up_baseline = topology.nodes[upstream]["baseline"]
+
+            up_req_base = up_baseline["request_rate"]
+            if up_req_base < 1e-6:
+                continue
+            request_deviation = (up_df["request_rate"].values - up_req_base * diurnal) / up_req_base
+            delayed_deviation = np.zeros(n_steps)
+            d = PROPAGATION_DELAY_STEPS
+            delayed_deviation[d:] = request_deviation[:-d] if d > 0 else request_deviation
+            propagated = delayed_deviation * PROPAGATION_FACTOR
+
+            req_base = baseline["request_rate"]
+            df["request_rate"] = df["request_rate"].values + req_base * propagated
+
+            lat_base = baseline["latency_p50_ms"]
+            lat99_base = baseline["latency_p99_ms"]
+            latency_bump = np.abs(propagated) * lat_base * 0.3
+            delayed_lat_bump = np.zeros(n_steps)
+            delayed_lat_bump[d:] = latency_bump[:-d] if d > 0 else latency_bump
+            df["latency_p50_ms"] = df["latency_p50_ms"].values + delayed_lat_bump
+            df["latency_p99_ms"] = df["latency_p99_ms"].values + delayed_lat_bump * (lat99_base / max(lat_base, 1))
+
+            cpu_base = baseline["cpu_percent"]
+            cpu_bump = np.abs(propagated) * cpu_base * 0.15
+            df["cpu_percent"] = np.clip(df["cpu_percent"].values + cpu_bump, 0, 100)
+
+        for metric in METRIC_NAMES:
+            lo, hi = METRIC_RANGES[metric]
+            df[metric] = np.clip(df[metric].values, lo, hi)
+
+        result[service] = df
 
     return result
