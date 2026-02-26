@@ -1,12 +1,49 @@
 """Registry of all fault scenarios with ground truth.
 
-Defines 8 fault scenarios across operational, security, and business-logic
+Defines fault scenarios across operational, security, and business-logic
 categories, each with specific parameters for reproducible evaluation.
+
+Includes:
+- 8 standard single-fault scenarios
+- 1 unknown fault (network_partition) — agent should escalate safely
+- 1 compound fault (DDoS + deployment_regression) — agent should detect ambiguity
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 from simulator.fault_injector import FaultScenario
+
+
+@dataclass
+class CompoundScenario:
+    """Multiple simultaneous faults with compound ground truth."""
+
+    faults: list[FaultScenario]
+    description: str = ""
+    expected_escalation: bool = False
+
+    @property
+    def fault_type(self) -> str:
+        return "+".join(f.fault_type for f in self.faults)
+
+    @property
+    def target_service(self) -> str:
+        return self.faults[0].target_service
+
+    @property
+    def is_security(self) -> bool:
+        return any(f.is_security for f in self.faults)
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        merged: dict[str, Any] = {}
+        for f in self.faults:
+            merged.update(f.metadata)
+        return merged
+
 
 SCENARIO_REGISTRY: dict[str, FaultScenario] = {
     "memory_leak_auth": FaultScenario(
@@ -82,17 +119,71 @@ SCENARIO_REGISTRY: dict[str, FaultScenario] = {
     ),
 }
 
+UNKNOWN_SCENARIOS: dict[str, FaultScenario] = {
+    "network_partition_order": FaultScenario(
+        fault_type="network_partition",
+        target_service="order-service",
+        start_time=200.0,
+        duration=800.0,
+        severity=0.75,
+        description=(
+            "Intermittent network partition affecting order-service — "
+            "packet loss, latency jitter, sporadic request drops. "
+            "Does not match any standard fault signature."
+        ),
+    ),
+}
 
-def get_scenario(scenario_id: str) -> FaultScenario:
-    """Retrieve a scenario by ID."""
-    if scenario_id not in SCENARIO_REGISTRY:
-        raise KeyError(
-            f"Unknown scenario '{scenario_id}'. "
-            f"Available: {list(SCENARIO_REGISTRY.keys())}"
-        )
-    return SCENARIO_REGISTRY[scenario_id]
+COMPOUND_SCENARIOS: dict[str, CompoundScenario] = {
+    "ddos_plus_deploy_regression": CompoundScenario(
+        faults=[
+            FaultScenario(
+                fault_type="ddos",
+                target_service="api-gateway",
+                start_time=150.0,
+                duration=500.0,
+                severity=0.8,
+                is_security=True,
+                metadata={"attack_type": "volumetric"},
+            ),
+            FaultScenario(
+                fault_type="deployment_regression",
+                target_service="order-service",
+                start_time=200.0,
+                duration=600.0,
+                severity=0.7,
+                metadata={"deploy_version": "v2.4.0"},
+            ),
+        ],
+        description=(
+            "Simultaneous DDoS on api-gateway and deployment regression "
+            "on order-service — ambiguous root cause, high diagnostic difficulty."
+        ),
+        expected_escalation=True,
+    ),
+}
 
 
-def list_scenarios() -> list[str]:
-    """Return all registered scenario IDs."""
-    return list(SCENARIO_REGISTRY.keys())
+def get_scenario(scenario_id: str) -> FaultScenario | CompoundScenario:
+    """Retrieve a scenario by ID (standard, unknown, or compound)."""
+    if scenario_id in SCENARIO_REGISTRY:
+        return SCENARIO_REGISTRY[scenario_id]
+    if scenario_id in UNKNOWN_SCENARIOS:
+        return UNKNOWN_SCENARIOS[scenario_id]
+    if scenario_id in COMPOUND_SCENARIOS:
+        return COMPOUND_SCENARIOS[scenario_id]
+    all_ids = list(SCENARIO_REGISTRY.keys()) + list(UNKNOWN_SCENARIOS.keys()) + list(COMPOUND_SCENARIOS.keys())
+    raise KeyError(f"Unknown scenario '{scenario_id}'. Available: {all_ids}")
+
+
+def list_scenarios(include_extended: bool = False) -> list[str]:
+    """Return registered scenario IDs.
+
+    Args:
+        include_extended: If True, include unknown and compound scenarios.
+    """
+    ids = list(SCENARIO_REGISTRY.keys())
+    if include_extended:
+        ids += list(UNKNOWN_SCENARIOS.keys())
+        ids += list(COMPOUND_SCENARIOS.keys())
+    return ids

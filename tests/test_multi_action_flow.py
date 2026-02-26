@@ -11,8 +11,6 @@ Validates:
 
 from __future__ import annotations
 
-import os
-
 from agent.agent import AIOpsAgent
 from orchestrator.orchestrator import Orchestrator
 from evaluation.benchmark_runner import train_ensemble
@@ -33,19 +31,19 @@ class TestMultiActionBudget:
         agent = AIOpsAgent()
         assert agent._max_actions == 1
 
-    def test_budget_exhausted_action_default(self):
-        agent = AIOpsAgent()
-        assert agent._budget_exhausted_action == "continue_monitoring"
-
-    def test_budget_exhausted_action_configurable(self, monkeypatch):
-        monkeypatch.setenv("AIOPS_BUDGET_EXHAUSTED_ACTION", "alert_human")
+    def test_budget_exhausted_action_default_is_alert(self):
         agent = AIOpsAgent()
         assert agent._budget_exhausted_action == "alert_human"
 
-    def test_budget_exhausted_action_invalid_falls_back(self, monkeypatch):
-        monkeypatch.setenv("AIOPS_BUDGET_EXHAUSTED_ACTION", "invalid_value")
+    def test_budget_exhausted_action_configurable_to_monitor(self, monkeypatch):
+        monkeypatch.setenv("AIOPS_BUDGET_EXHAUSTED_ACTION", "continue_monitoring")
         agent = AIOpsAgent()
         assert agent._budget_exhausted_action == "continue_monitoring"
+
+    def test_budget_exhausted_action_invalid_falls_back_to_alert(self, monkeypatch):
+        monkeypatch.setenv("AIOPS_BUDGET_EXHAUSTED_ACTION", "invalid_value")
+        agent = AIOpsAgent()
+        assert agent._budget_exhausted_action == "alert_human"
 
     def test_action_count_starts_at_zero(self):
         agent = AIOpsAgent()
@@ -73,7 +71,7 @@ class TestMultiActionFlow:
         assert agent._action_count >= 1
 
     def test_budget_prevents_excessive_actions(self, monkeypatch):
-        """Agent stops acting after reaching the action budget."""
+        """After budget, agent escalates at most once then only monitors."""
         monkeypatch.setenv("AIOPS_MAX_ACTIONS", "1")
         ensemble = train_ensemble(seed=42)
         orch = Orchestrator(seed=42)
@@ -91,7 +89,10 @@ class TestMultiActionFlow:
             if action.action != "continue_monitoring":
                 actions_taken.append(action.action)
 
-        assert len(actions_taken) <= 1
+        assert len(actions_taken) <= 2, (
+            f"Expected at most 2 non-monitoring actions (1 remediation + 1 budget escalation), "
+            f"got {len(actions_taken)}: {actions_taken}"
+        )
 
     def test_agent_can_act_multiple_times(self):
         """Agent takes a second action if the first doesn't resolve."""
@@ -142,10 +143,10 @@ class TestMultiActionFlow:
                 )
                 break
 
-    def test_budget_exhaustion_returns_monitoring(self, monkeypatch):
-        """After budget is exhausted, agent returns continue_monitoring."""
+    def test_budget_exhaustion_returns_monitoring_when_configured(self, monkeypatch):
+        """When configured, budget-exhausted agent returns continue_monitoring."""
         monkeypatch.setenv("AIOPS_MAX_ACTIONS", "1")
-        monkeypatch.delenv("AIOPS_BUDGET_EXHAUSTED_ACTION", raising=False)
+        monkeypatch.setenv("AIOPS_BUDGET_EXHAUSTED_ACTION", "continue_monitoring")
         ensemble = train_ensemble(seed=42)
         orch = Orchestrator(seed=42)
         orch.init_problem("cpu_saturation_order")
@@ -171,10 +172,10 @@ class TestMultiActionFlow:
             "No additional actions should be taken after budget exhaustion"
         )
 
-    def test_budget_exhaustion_escalates_when_configured(self, monkeypatch):
-        """Budget exhaustion can force alert_human via config."""
+    def test_budget_exhaustion_escalates_by_default(self, monkeypatch):
+        """Budget exhaustion escalates to alert_human by default (safe mode)."""
         monkeypatch.setenv("AIOPS_MAX_ACTIONS", "1")
-        monkeypatch.setenv("AIOPS_BUDGET_EXHAUSTED_ACTION", "alert_human")
+        monkeypatch.delenv("AIOPS_BUDGET_EXHAUSTED_ACTION", raising=False)
         ensemble = train_ensemble(seed=42)
         orch = Orchestrator(seed=42)
         orch.init_problem("memory_leak_auth")

@@ -2,11 +2,15 @@
 
 Generates 8 metrics per service with diurnal patterns, Gaussian noise,
 and cross-service correlation that propagates through the dependency graph.
+
+Supports distribution profiles to test agent robustness under shifted
+operating conditions (different noise levels, propagation characteristics).
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -25,14 +29,76 @@ METRIC_RANGES: dict[str, tuple[float, float]] = {
     "transactions_per_minute": (0.0, float("inf")),
 }
 
-PROPAGATION_DELAY_STEPS = 2
-PROPAGATION_FACTOR = 0.7
+
+@dataclass(frozen=True)
+class MetricsProfile:
+    """Distribution parameters for metrics generation.
+
+    Profiles control noise, diurnal patterns, and inter-service propagation
+    to simulate different operating conditions.
+    """
+
+    name: str
+    noise_fraction: float  # std = base * noise_fraction
+    diurnal_amplitude: float  # amplitude of diurnal sine wave
+    propagation_delay_min: int  # min steps of cross-service delay
+    propagation_delay_max: int  # max steps (randomized per edge)
+    propagation_factor_min: float  # min attenuation factor
+    propagation_factor_max: float  # max attenuation factor
+
+    @property
+    def propagation_delay_fixed(self) -> bool:
+        return self.propagation_delay_min == self.propagation_delay_max
+
+    @property
+    def propagation_factor_fixed(self) -> bool:
+        return abs(self.propagation_factor_min - self.propagation_factor_max) < 1e-9
 
 
-def _diurnal_factor(timestamp_seconds: np.ndarray) -> np.ndarray:
+PROFILE_BASELINE = MetricsProfile(
+    name="baseline",
+    noise_fraction=0.05,
+    diurnal_amplitude=0.30,
+    propagation_delay_min=2,
+    propagation_delay_max=2,
+    propagation_factor_min=0.70,
+    propagation_factor_max=0.70,
+)
+
+PROFILE_MODERATE_SHIFT = MetricsProfile(
+    name="moderate_shift",
+    noise_fraction=0.08,
+    diurnal_amplitude=0.40,
+    propagation_delay_min=1,
+    propagation_delay_max=3,
+    propagation_factor_min=0.55,
+    propagation_factor_max=0.85,
+)
+
+PROFILE_STRESS = MetricsProfile(
+    name="stress",
+    noise_fraction=0.11,
+    diurnal_amplitude=0.50,
+    propagation_delay_min=0,
+    propagation_delay_max=4,
+    propagation_factor_min=0.40,
+    propagation_factor_max=0.90,
+)
+
+PROFILES: dict[str, MetricsProfile] = {p.name: p for p in [PROFILE_BASELINE, PROFILE_MODERATE_SHIFT, PROFILE_STRESS]}
+
+
+def get_profile(name: str) -> MetricsProfile:
+    """Look up a named metrics profile."""
+    if name not in PROFILES:
+        raise ValueError(f"Unknown profile '{name}'. Available: {list(PROFILES.keys())}")
+    return PROFILES[name]
+
+
+def _diurnal_factor(timestamp_seconds: np.ndarray, amplitude: float = 0.3) -> np.ndarray:
     """Compute diurnal multiplier: peak at hour 12, trough at hour 3."""
     hours = (timestamp_seconds % 86400) / 3600.0
-    return 1.0 + 0.3 * np.sin(2 * math.pi * hours / 24.0 - math.pi / 2.0)
+    return 1.0 + amplitude * np.sin(2 * math.pi * hours / 24.0 - math.pi / 2.0)
 
 
 def generate_metrics(
@@ -40,17 +106,25 @@ def generate_metrics(
     duration_seconds: int,
     interval_seconds: int = 10,
     seed: int = 42,
+    profile: MetricsProfile | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Generate normal (non-faulty) metrics for all services.
 
     Downstream services see correlated request_rate, latency, and CPU
-    fluctuations from their upstream dependencies, with realistic
-    propagation delay (20s) and attenuation (70% of upstream variance).
+    fluctuations from their upstream dependencies, with propagation
+    delay and attenuation controlled by the metrics profile.
+
+    Args:
+        profile: Distribution profile controlling noise, diurnal amplitude,
+                 and propagation parameters. Defaults to PROFILE_BASELINE.
 
     Returns:
         Dict mapping service name to DataFrame with metric columns
         and DatetimeIndex timestamps.
     """
+    if profile is None:
+        profile = PROFILE_BASELINE
+
     rng = np.random.RandomState(seed)
     n_steps = duration_seconds // interval_seconds
     timestamps = pd.date_range(
@@ -59,7 +133,7 @@ def generate_metrics(
         freq=f"{interval_seconds}s",
     )
     ts_seconds = np.arange(n_steps) * interval_seconds
-    diurnal = _diurnal_factor(ts_seconds)
+    diurnal = _diurnal_factor(ts_seconds, amplitude=profile.diurnal_amplitude)
 
     result: dict[str, pd.DataFrame] = {}
 
@@ -72,7 +146,7 @@ def generate_metrics(
 
         for metric in METRIC_NAMES:
             base = baseline[metric]
-            noise_std = base * 0.05 if base > 0 else 0.001
+            noise_std = base * profile.noise_fraction if base > 0 else 0.001
             noise = rng.randn(n_steps) * noise_std
             values = base * diurnal + noise
 
@@ -97,11 +171,30 @@ def generate_metrics(
             up_req_base = up_baseline["request_rate"]
             if up_req_base < 1e-6:
                 continue
+
+            if profile.propagation_delay_fixed:
+                d = profile.propagation_delay_min
+            else:
+                d = rng.randint(
+                    profile.propagation_delay_min,
+                    profile.propagation_delay_max + 1,
+                )
+
+            if profile.propagation_factor_fixed:
+                prop_factor = profile.propagation_factor_min
+            else:
+                prop_factor = rng.uniform(
+                    profile.propagation_factor_min,
+                    profile.propagation_factor_max,
+                )
+
             request_deviation = (up_df["request_rate"].values - up_req_base * diurnal) / up_req_base
             delayed_deviation = np.zeros(n_steps)
-            d = PROPAGATION_DELAY_STEPS
-            delayed_deviation[d:] = request_deviation[:-d] if d > 0 else request_deviation
-            propagated = delayed_deviation * PROPAGATION_FACTOR
+            if d > 0:
+                delayed_deviation[d:] = request_deviation[:-d]
+            else:
+                delayed_deviation = request_deviation.copy()
+            propagated = delayed_deviation * prop_factor
 
             req_base = baseline["request_rate"]
             df["request_rate"] = df["request_rate"].values + req_base * propagated
@@ -110,7 +203,10 @@ def generate_metrics(
             lat99_base = baseline["latency_p99_ms"]
             latency_bump = np.abs(propagated) * lat_base * 0.3
             delayed_lat_bump = np.zeros(n_steps)
-            delayed_lat_bump[d:] = latency_bump[:-d] if d > 0 else latency_bump
+            if d > 0:
+                delayed_lat_bump[d:] = latency_bump[:-d]
+            else:
+                delayed_lat_bump = latency_bump.copy()
             df["latency_p50_ms"] = df["latency_p50_ms"].values + delayed_lat_bump
             df["latency_p99_ms"] = df["latency_p99_ms"].values + delayed_lat_bump * (lat99_base / max(lat_base, 1))
 

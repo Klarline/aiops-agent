@@ -12,7 +12,12 @@ from typing import Any
 
 import numpy as np
 
-from evaluation.metrics_calculator import format_leaderboard, compute_per_scenario_breakdown
+from evaluation.metrics_calculator import (
+    format_leaderboard,
+    compute_per_scenario_breakdown,
+    compute_precision_recall,
+    compute_calibration_buckets,
+)
 
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
@@ -53,16 +58,28 @@ def generate_leaderboard_report(
     os.makedirs(RESULTS_DIR, exist_ok=True)
     os.makedirs(PLOTS_DIR, exist_ok=True)
 
-    agent_aggregates = {
-        name: data["aggregate"] for name, data in leaderboard_data.items()
-    }
+    agent_aggregates = {name: data["aggregate"] for name, data in leaderboard_data.items()}
     leaderboard_text = format_leaderboard(agent_aggregates)
 
+    calibration_data: dict[str, Any] = {}
+    for name, data in leaderboard_data.items():
+        raw = data.get("raw_results", [])
+        calibration_data[name] = {
+            "precision_recall": compute_precision_recall(raw),
+            "calibration_buckets": compute_calibration_buckets(raw),
+        }
+
     results_path = os.path.join(RESULTS_DIR, "leaderboard_results.json")
-    serializable = _make_serializable({
-        name: {"aggregate": data["aggregate"], "per_scenario": data["per_scenario"]}
-        for name, data in leaderboard_data.items()
-    })
+    serializable = _make_serializable(
+        {
+            name: {
+                "aggregate": data["aggregate"],
+                "per_scenario": data["per_scenario"],
+                "calibration": calibration_data.get(name, {}),
+            }
+            for name, data in leaderboard_data.items()
+        }
+    )
     with open(results_path, "w") as f:
         json.dump(serializable, f, indent=2)
 
@@ -74,6 +91,7 @@ def generate_leaderboard_report(
     return {
         "results_path": results_path,
         "leaderboard": leaderboard_text,
+        "calibration": calibration_data,
     }
 
 
@@ -101,6 +119,7 @@ def _build_leaderboard(results: dict) -> str:
 def _generate_plots(results: dict, breakdown: dict) -> None:
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -115,6 +134,7 @@ def _generate_leaderboard_plots(leaderboard_data: dict[str, dict]) -> None:
     """Generate all comparative plots for the multi-agent leaderboard."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -144,11 +164,17 @@ def _plot_scenario_heatmap(breakdown: dict, plt, sns) -> None:
 
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.heatmap(
-        data, annot=True, fmt=".0%", cmap="RdYlGn",
+        data,
+        annot=True,
+        fmt=".0%",
+        cmap="RdYlGn",
         xticklabels=[t.capitalize() for t in tasks],
         yticklabels=[s.replace("_", " ").title() for s in scenarios],
-        ax=ax, vmin=0, vmax=1,
-        linewidths=0.5, linecolor="white",
+        ax=ax,
+        vmin=0,
+        vmax=1,
+        linewidths=0.5,
+        linecolor="white",
     )
     ax.set_title("Per-Scenario Accuracy (AIOpsLab Format)", fontsize=14, fontweight="bold")
     plt.tight_layout()
@@ -173,8 +199,7 @@ def _plot_mttr_chart(results: dict, plt) -> None:
     ax.set_title("MTTR by Scenario", fontsize=14, fontweight="bold")
 
     for bar, val in zip(bars, times):
-        ax.text(bar.get_width() + 2, bar.get_y() + bar.get_height() / 2,
-                f"{val:.0f}s", va="center", fontsize=9)
+        ax.text(bar.get_width() + 2, bar.get_y() + bar.get_height() / 2, f"{val:.0f}s", va="center", fontsize=9)
 
     ax.invert_yaxis()
     plt.tight_layout()
@@ -195,11 +220,18 @@ def _plot_leaderboard_comparison(leaderboard_data: dict, plt) -> None:
         agg = leaderboard_data[agent]["aggregate"]
         vals = [agg[t] for t in tasks]
         offset = (i - len(agents) / 2 + 0.5) * width
-        bars = ax.bar(x + offset, vals, width, label=agent, color=colors[i % len(colors)],
-                      edgecolor="white", linewidth=0.5)
+        bars = ax.bar(
+            x + offset, vals, width, label=agent, color=colors[i % len(colors)], edgecolor="white", linewidth=0.5
+        )
         for bar, v in zip(bars, vals):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                    f"{v:.0%}", ha="center", va="bottom", fontsize=8)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.01,
+                f"{v:.0%}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
 
     ax.set_ylabel("Accuracy", fontsize=11)
     ax.set_title("Agent Comparison — AIOpsLab Leaderboard", fontsize=14, fontweight="bold")
@@ -235,10 +267,8 @@ def _plot_per_task_comparison(leaderboard_data: dict, plt) -> None:
     x = np.arange(len(scenarios))
     width = 0.35
 
-    ax.barh(x - width / 2, ml_avgs, width, label="ML Ensemble Agent",
-            color="#2ecc71", edgecolor="white")
-    ax.barh(x + width / 2, st_avgs, width, label="Static Threshold",
-            color="#e74c3c", edgecolor="white")
+    ax.barh(x - width / 2, ml_avgs, width, label="ML Ensemble Agent", color="#2ecc71", edgecolor="white")
+    ax.barh(x + width / 2, st_avgs, width, label="Static Threshold", color="#e74c3c", edgecolor="white")
 
     ax.set_xlabel("Average Score", fontsize=11)
     ax.set_title("Per-Scenario: ML Agent vs Static Threshold", fontsize=14, fontweight="bold")
@@ -288,24 +318,46 @@ def _plot_shap_waterfall(plt) -> None:
     feature_names = get_feature_names()
 
     representative_incidents = [
-        ("Memory Leak", FaultScenario(
-            fault_type="memory_leak", target_service="auth-service",
-            start_time=600, duration=1200, severity=0.8,
-        ), "auth-service"),
-        ("CPU Saturation", FaultScenario(
-            fault_type="cpu_saturation", target_service="order-service",
-            start_time=600, duration=1200, severity=0.8,
-        ), "order-service"),
-        ("Brute Force", FaultScenario(
-            fault_type="brute_force", target_service="auth-service",
-            start_time=600, duration=1200, severity=0.8,
-        ), "auth-service"),
+        (
+            "Memory Leak",
+            FaultScenario(
+                fault_type="memory_leak",
+                target_service="auth-service",
+                start_time=600,
+                duration=1200,
+                severity=0.8,
+            ),
+            "auth-service",
+        ),
+        (
+            "CPU Saturation",
+            FaultScenario(
+                fault_type="cpu_saturation",
+                target_service="order-service",
+                start_time=600,
+                duration=1200,
+                severity=0.8,
+            ),
+            "order-service",
+        ),
+        (
+            "Brute Force",
+            FaultScenario(
+                fault_type="brute_force",
+                target_service="auth-service",
+                start_time=600,
+                duration=1200,
+                severity=0.8,
+            ),
+            "auth-service",
+        ),
     ]
 
     for title, scenario, target_service in representative_incidents:
         faulty = inject_fault(
             {s: df.copy() for s, df in normal.items()},
-            scenario, topology,
+            scenario,
+            topology,
         )
 
         peak_step = int((scenario.start_time + scenario.duration * 0.7) / 10)
@@ -314,7 +366,7 @@ def _plot_shap_waterfall(plt) -> None:
             continue
 
         window_start = max(0, peak_step - 6)
-        window = target_df.iloc[window_start:peak_step + 1]
+        window = target_df.iloc[window_start : peak_step + 1]
         features = extract_features(window, window_size=6)
 
         shap_values = explainer.shap_values(features.reshape(1, -1))
@@ -334,8 +386,7 @@ def _plot_shap_waterfall(plt) -> None:
         ax.set_yticks(y_pos)
         ax.set_yticklabels(names, fontsize=9)
         ax.set_xlabel("SHAP Value (impact on anomaly score)", fontsize=10)
-        ax.set_title(f"SHAP Waterfall — {title} ({target_service})",
-                      fontsize=12, fontweight="bold")
+        ax.set_title(f"SHAP Waterfall — {title} ({target_service})", fontsize=12, fontweight="bold")
         ax.axvline(x=0, color="black", linewidth=0.5)
         ax.invert_yaxis()
         ax.spines["top"].set_visible(False)
@@ -365,17 +416,17 @@ def _generate_markdown(results: dict, leaderboard: str, breakdown: dict) -> str:
         loc = scores["localization"]
         diag = scores["diagnosis"]
         mit = scores["mitigation"]
-        lines.append(
-            f"  {sid:35s} Det={det:.0%} Loc={loc:.0%} Diag={diag:.0%} Mit={mit:.0%}"
-        )
+        lines.append(f"  {sid:35s} Det={det:.0%} Loc={loc:.0%} Diag={diag:.0%} Mit={mit:.0%}")
 
-    lines.extend([
-        "",
-        "## Configuration",
-        f"- Seed: {results['seed']}",
-        f"- Episodes per scenario: {results['episodes_per_scenario']}",
-        f"- Total episodes: {results['total_episodes']}",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Configuration",
+            f"- Seed: {results['seed']}",
+            f"- Episodes per scenario: {results['episodes_per_scenario']}",
+            f"- Total episodes: {results['total_episodes']}",
+        ]
+    )
 
     return "\n".join(lines)
 

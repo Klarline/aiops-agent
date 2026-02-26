@@ -58,17 +58,13 @@ class AIOpsAgent:
         self._pending_scores: dict[str, float] = {}
 
         self._action_count: int = 0
-        self._max_actions: int = int(
-            os.environ.get("AIOPS_MAX_ACTIONS", "3")
-        )
-        budget_action = os.environ.get(
-            "AIOPS_BUDGET_EXHAUSTED_ACTION", "continue_monitoring"
-        ).strip().lower()
+        self._max_actions: int = int(os.environ.get("AIOPS_MAX_ACTIONS", "3"))
+        budget_action = os.environ.get("AIOPS_BUDGET_EXHAUSTED_ACTION", "alert_human").strip().lower()
         self._budget_exhausted_action: str = (
-            budget_action
-            if budget_action in {"continue_monitoring", "alert_human"}
-            else "continue_monitoring"
+            budget_action if budget_action in {"continue_monitoring", "alert_human"} else "alert_human"
         )
+
+        self._budget_escalated: bool = False
 
         self._terminal_attempts_by_type: dict[str, int] = {}
         self._total_terminal_attempts: int = 0
@@ -82,9 +78,7 @@ class AIOpsAgent:
     def set_ensemble(self, ensemble: EnsembleDetector) -> None:
         """Inject trained ensemble detector."""
         self.ensemble = ensemble
-        self.explainer = ShapExplainer(
-            ensemble.iso_detector.model, self._feature_names
-        )
+        self.explainer = ShapExplainer(ensemble.iso_detector.model, self._feature_names)
         self._maybe_build_tools()
 
     def set_environment(self, env) -> None:
@@ -94,10 +88,12 @@ class AIOpsAgent:
 
     def _maybe_build_tools(self) -> None:
         """Build tool registry when all dependencies are available."""
-        if (self._environment is not None
-                and self.ensemble is not None
-                and self._llm is not None
-                and self._llm.is_available):
+        if (
+            self._environment is not None
+            and self.ensemble is not None
+            and self._llm is not None
+            and self._llm.is_available
+        ):
             self._tool_registry = ToolRegistry(
                 env=self._environment,
                 ensemble=self.ensemble,
@@ -117,11 +113,13 @@ class AIOpsAgent:
                 self._tool_registry.update_metrics_history(observation)
             return self._process_observation(observation)
         except Exception as e:
-            self._reasoning_log.append({
-                "step": observation.step_index,
-                "error": str(e),
-                "fallback": "alert_human",
-            })
+            self._reasoning_log.append(
+                {
+                    "step": observation.step_index,
+                    "error": str(e),
+                    "fallback": "alert_human",
+                }
+            )
             return AgentAction(
                 action="alert_human",
                 target="",
@@ -137,8 +135,7 @@ class AIOpsAgent:
             return AgentAction(action="continue_monitoring")
 
         if self.ensemble is None:
-            return AgentAction(action="continue_monitoring",
-                               explanation="No trained model available")
+            return AgentAction(action="continue_monitoring", explanation="No trained model available")
 
         # --- OBSERVE ---
         per_service_scores: dict[str, float] = {}
@@ -161,9 +158,7 @@ class AIOpsAgent:
 
         # --- THINK: Detect ---
         max_score = max(per_service_scores.values()) if per_service_scores else 0
-        any_anomalous = any(
-            r.is_anomalous for r in per_service_results.values()
-        )
+        any_anomalous = any(r.is_anomalous for r in per_service_results.values())
 
         if not any_anomalous:
             self._consecutive_anomalies = 0
@@ -177,9 +172,7 @@ class AIOpsAgent:
         if self._action_count >= self._max_actions:
             return self._handle_budget_exhaustion(obs, max_score)
 
-        required = (self._followup_confirmations
-                     if self._action_count > 0
-                     else self._required_confirmations)
+        required = self._followup_confirmations if self._action_count > 0 else self._required_confirmations
         if self._consecutive_anomalies < required:
             return AgentAction(action="continue_monitoring")
 
@@ -194,8 +187,11 @@ class AIOpsAgent:
                 self._reasoning_chain.append({"fallback": f"LLM error: {e}"})
 
         return self._rule_based_pipeline(
-            obs, per_service_scores, per_service_results,
-            per_service_features, max_score,
+            obs,
+            per_service_scores,
+            per_service_results,
+            per_service_features,
+            max_score,
         )
 
     def _should_use_react(self) -> bool:
@@ -224,41 +220,43 @@ class AIOpsAgent:
             tool_descriptions=self._tool_registry.descriptions_text(),
         )
 
-        top_anomalies = sorted(
-            per_service_scores.items(), key=lambda x: x[1], reverse=True
-        )[:3]
-        anomaly_summary = ", ".join(
-            f"{svc} (score={s:.2f})" for svc, s in top_anomalies
-        )
+        top_anomalies = sorted(per_service_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        anomaly_summary = ", ".join(f"{svc} (score={s:.2f})" for svc, s in top_anomalies)
 
-        messages = [{
-            "role": "user",
-            "content": (
-                f"Anomaly detected at step {obs.step_index}. "
-                f"Top anomalous services: {anomaly_summary}. "
-                "Investigate the root cause and take appropriate remediation."
-            ),
-        }]
+        messages = [
+            {
+                "role": "user",
+                "content": (
+                    f"Anomaly detected at step {obs.step_index}. "
+                    f"Top anomalous services: {anomaly_summary}. "
+                    "Investigate the root cause and take appropriate remediation."
+                ),
+            }
+        ]
 
         for step in range(self.MAX_REACT_STEPS):
             response = self._llm.generate(system, messages)
 
             thought, tool_name, tool_args = parse_react_response(response)
-            self._reasoning_chain.append({
-                "step": step,
-                "thought": thought,
-                "tool": tool_name,
-                "args": tool_args,
-            })
+            self._reasoning_chain.append(
+                {
+                    "step": step,
+                    "thought": thought,
+                    "tool": tool_name,
+                    "args": tool_args,
+                }
+            )
 
             if tool_name is None:
                 break
 
             result = self._tool_registry.call(tool_name, tool_args)
-            self._reasoning_chain.append({
-                "step": step,
-                "observation": result.data,
-            })
+            self._reasoning_chain.append(
+                {
+                    "step": step,
+                    "observation": result.data,
+                }
+            )
 
             if self._tool_registry.is_terminal(tool_name):
                 if result.success:
@@ -275,9 +273,7 @@ class AIOpsAgent:
                         details={"reasoning_chain": self._reasoning_chain},
                     )
 
-                self._terminal_attempts_by_type[tool_name] = (
-                    self._terminal_attempts_by_type.get(tool_name, 0) + 1
-                )
+                self._terminal_attempts_by_type[tool_name] = self._terminal_attempts_by_type.get(tool_name, 0) + 1
                 self._total_terminal_attempts += 1
 
                 if self._should_force_escalation(tool_name):
@@ -286,36 +282,40 @@ class AIOpsAgent:
                     self._log_react_reasoning(
                         obs,
                         f"Forced escalation after terminal failures: {tool_name}",
-                        "alert_human", "",
+                        "alert_human",
+                        "",
                     )
                     return AgentAction(
                         action="alert_human",
                         target="",
                         explanation=(
                             f"Escalating: {tool_name} failed "
-                            f"({self._total_terminal_attempts} terminal attempts). "
-                            + self._react_summary()
+                            f"({self._total_terminal_attempts} terminal attempts). " + self._react_summary()
                         ),
                         confidence=0.5,
                         details={"reasoning_chain": self._reasoning_chain},
                     )
 
                 messages.append({"role": "assistant", "content": response})
-                messages.append({
-                    "role": "user",
-                    "content": (
-                        f"Tool result: ACTION FAILED — {result.summary()}. "
-                        "The action did not succeed. Choose an alternative "
-                        "approach or escalate with alert_human."
-                    ),
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Tool result: ACTION FAILED — {result.summary()}. "
+                            "The action did not succeed. Choose an alternative "
+                            "approach or escalate with alert_human."
+                        ),
+                    }
+                )
                 continue
 
             messages.append({"role": "assistant", "content": response})
-            messages.append({
-                "role": "user",
-                "content": f"Tool result: {result.summary()}",
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Tool result: {result.summary()}",
+                }
+            )
 
         raise RuntimeError("ReAct loop exhausted without terminal action")
 
@@ -327,22 +327,27 @@ class AIOpsAgent:
             return True
         return False
 
-    def _handle_budget_exhaustion(
-        self, obs: Observation, max_score: float
-    ) -> AgentAction:
-        """Handle incidents observed after action budget is exhausted."""
-        if self._budget_exhausted_action == "alert_human":
+    def _handle_budget_exhaustion(self, obs: Observation, max_score: float) -> AgentAction:
+        """Handle incidents observed after action budget is exhausted.
+
+        Escalates to alert_human exactly once (safe default), then returns
+        continue_monitoring to avoid spamming the escalation channel.
+        """
+        if self._budget_exhausted_action == "alert_human" and not self._budget_escalated:
+            self._budget_escalated = True
             explanation = (
                 f"Action budget exhausted ({self._action_count}/{self._max_actions}) "
                 "while anomaly persists. Escalating to human."
             )
-            self._reasoning_log.append({
-                "step": obs.step_index,
-                "timestamp": str(obs.timestamp),
-                "mode": "budget_guardrail",
-                "action": "alert_human",
-                "summary": explanation,
-            })
+            self._reasoning_log.append(
+                {
+                    "step": obs.step_index,
+                    "timestamp": str(obs.timestamp),
+                    "mode": "budget_guardrail",
+                    "action": "alert_human",
+                    "summary": explanation,
+                }
+            )
             return AgentAction(
                 action="alert_human",
                 target="",
@@ -356,16 +361,11 @@ class AIOpsAgent:
             )
         return AgentAction(
             action="continue_monitoring",
-            explanation=(
-                f"Action budget exhausted ({self._action_count}/{self._max_actions}); "
-                "continuing to monitor."
-            ),
+            explanation=(f"Action budget exhausted ({self._action_count}/{self._max_actions}); continuing to monitor."),
         )
 
     @staticmethod
-    def _map_terminal_action(
-        tool_name: str, args: dict[str, Any]
-    ) -> tuple[str, str]:
+    def _map_terminal_action(tool_name: str, args: dict[str, Any]) -> tuple[str, str]:
         """Map tool name to (action_string, target)."""
         mapping = {
             "restart_service": ("restart_service", args.get("service", "")),
@@ -379,26 +379,23 @@ class AIOpsAgent:
 
     def _react_summary(self) -> str:
         """Build a natural-language summary from the reasoning chain."""
-        thoughts = [
-            s["thought"] for s in self._reasoning_chain
-            if "thought" in s and s["thought"]
-        ]
+        thoughts = [s["thought"] for s in self._reasoning_chain if "thought" in s and s["thought"]]
         if thoughts:
             return " → ".join(thoughts)
         return "LLM agent completed investigation."
 
-    def _log_react_reasoning(
-        self, obs: Observation, thought: str, action: str, target: str
-    ) -> None:
-        self._reasoning_log.append({
-            "step": obs.step_index,
-            "timestamp": str(obs.timestamp),
-            "mode": "react",
-            "thought": thought,
-            "action": action,
-            "target": target,
-            "chain_length": len(self._reasoning_chain),
-        })
+    def _log_react_reasoning(self, obs: Observation, thought: str, action: str, target: str) -> None:
+        self._reasoning_log.append(
+            {
+                "step": obs.step_index,
+                "timestamp": str(obs.timestamp),
+                "mode": "react",
+                "thought": thought,
+                "action": action,
+                "target": target,
+                "chain_length": len(self._reasoning_chain),
+            }
+        )
 
     # ------------------------------------------------------------------
     # Rule-based fallback pipeline (original logic, always available)
@@ -416,17 +413,14 @@ class AIOpsAgent:
 
         # --- Localize ---
         scores_for_localization = {
-            svc: self._pending_scores.get(svc, per_service_scores.get(svc, 0))
-            for svc in per_service_scores
+            svc: self._pending_scores.get(svc, per_service_scores.get(svc, 0)) for svc in per_service_scores
         }
         root_service = self.localizer.localize(scores_for_localization, obs.topology)
 
         # --- Explain ---
         shap_explanation = None
         if root_service in per_service_features and self.explainer:
-            shap_explanation = self.explainer.explain(
-                per_service_features[root_service]
-            )
+            shap_explanation = self.explainer.explain(per_service_features[root_service])
 
         # --- Diagnose ---
         history_df = None
@@ -434,7 +428,9 @@ class AIOpsAgent:
             history_df = pd.DataFrame(self._metrics_history[root_service])
 
         diagnosis = self.diagnoser.diagnose(
-            obs.metrics, history_df, root_service,
+            obs.metrics,
+            history_df,
+            root_service,
             per_service_scores.get(root_service, max_score),
         )
 
@@ -445,7 +441,9 @@ class AIOpsAgent:
             gate = self.uncertainty_gate.check(root_result, diagnosis.severity, blast)
             if gate.should_escalate:
                 summary = generate_summary(
-                    diagnosis.fault_type, root_service, "alert_human",
+                    diagnosis.fault_type,
+                    root_service,
+                    "alert_human",
                     diagnosis.severity,
                     shap_explanation.top_features if shap_explanation else None,
                     {"reason": gate.reason},
@@ -468,7 +466,9 @@ class AIOpsAgent:
             action = self.policy.decide(diagnosis)
 
         summary = generate_summary(
-            diagnosis.fault_type, root_service, action,
+            diagnosis.fault_type,
+            root_service,
+            action,
             diagnosis.severity,
             shap_explanation.top_features if shap_explanation else None,
             self._build_context(obs, root_service, diagnosis),
@@ -490,9 +490,7 @@ class AIOpsAgent:
     # Shared helpers
     # ------------------------------------------------------------------
 
-    def _get_service_history(
-        self, service: str, current_metrics: dict[str, float]
-    ) -> list[dict[str, float]]:
+    def _get_service_history(self, service: str, current_metrics: dict[str, float]) -> list[dict[str, float]]:
         if service not in self._metrics_history:
             self._metrics_history[service] = []
         self._metrics_history[service].append(current_metrics)
@@ -512,7 +510,7 @@ class AIOpsAgent:
         when history is too short.
         """
         if len(history) >= self._warmup_steps:
-            baseline_window = history[:self._warmup_steps]
+            baseline_window = history[: self._warmup_steps]
         elif history:
             baseline_window = history
         else:
@@ -521,9 +519,7 @@ class AIOpsAgent:
         baseline_df = pd.DataFrame(baseline_window)
         return {col: float(baseline_df[col].mean()) for col in baseline_df.columns}
 
-    def _build_context(
-        self, obs: Observation, service: str, diagnosis: Diagnosis
-    ) -> dict[str, Any]:
+    def _build_context(self, obs: Observation, service: str, diagnosis: Diagnosis) -> dict[str, Any]:
         metrics = obs.metrics.get(service, {})
         history = self._metrics_history.get(service, [])
 
@@ -563,15 +559,10 @@ class AIOpsAgent:
                     z = abs(float(series.iloc[-1]) - r_mean) / r_std
                     peak_zscore = max(peak_zscore, z)
 
-        latency_mult = (latency_p99 / latency_baseline
-                        if latency_baseline > 0 else 1.0)
-        latency_increase = (
-            (latency_p99 - latency_baseline) / latency_baseline * 100
-            if latency_baseline > 0 else 0
-        )
+        latency_mult = latency_p99 / latency_baseline if latency_baseline > 0 else 1.0
+        latency_increase = (latency_p99 - latency_baseline) / latency_baseline * 100 if latency_baseline > 0 else 0
         error_increase = error_rate - error_baseline
-        request_mult = (request_rate / request_baseline
-                        if request_baseline > 0 else 1.0)
+        request_mult = request_rate / request_baseline if request_baseline > 0 else 1.0
         error_count = int(request_rate * error_rate)
         observation_window = f"{self._required_confirmations * 10} seconds"
 
@@ -585,10 +576,7 @@ class AIOpsAgent:
             "zscore": peak_zscore,
             "error_count": error_count,
             "window": observation_window,
-            "affected_count": sum(
-                1 for s, m in obs.metrics.items()
-                if s != service and m.get("error_rate", 0) > 0.05
-            ),
+            "affected_count": sum(1 for s, m in obs.metrics.items() if s != service and m.get("error_rate", 0) > 0.05),
             "latency_mult": latency_mult,
             "latency_increase": latency_increase,
             "error_increase": error_increase,
@@ -596,9 +584,11 @@ class AIOpsAgent:
         }
 
         source_ip = ""
-        if (self._environment is not None
-                and hasattr(self._environment, "scenario")
-                and self._environment.scenario is not None):
+        if (
+            self._environment is not None
+            and hasattr(self._environment, "scenario")
+            and self._environment.scenario is not None
+        ):
             source_ip = self._environment.scenario.metadata.get("source_ip", "")
         if source_ip:
             context["source_ip"] = source_ip
@@ -613,17 +603,19 @@ class AIOpsAgent:
         summary: str,
         note: str = "",
     ) -> None:
-        self._reasoning_log.append({
-            "step": obs.step_index,
-            "timestamp": str(obs.timestamp),
-            "mode": "rule-based",
-            "diagnosis": diagnosis.fault_type,
-            "service": diagnosis.localized_service,
-            "confidence": diagnosis.confidence,
-            "action": action,
-            "summary": summary,
-            "note": note,
-        })
+        self._reasoning_log.append(
+            {
+                "step": obs.step_index,
+                "timestamp": str(obs.timestamp),
+                "mode": "rule-based",
+                "diagnosis": diagnosis.fault_type,
+                "service": diagnosis.localized_service,
+                "confidence": diagnosis.confidence,
+                "action": action,
+                "summary": summary,
+                "note": note,
+            }
+        )
 
     @property
     def reasoning_log(self) -> list[dict[str, Any]]:

@@ -18,8 +18,8 @@ from orchestrator.problem_context import (
 class Orchestrator:
     """Lightweight AIOpsLab-inspired orchestrator."""
 
-    def __init__(self, seed: int = 42):
-        self.env = SimulatedEnvironment(seed=seed)
+    def __init__(self, seed: int = 42, eval_profile=None):
+        self.env = SimulatedEnvironment(seed=seed, profile=eval_profile)
         self.history: list[dict] = []
         self._agent_detected: bool = False
         self._agent_localized: str = ""

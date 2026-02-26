@@ -13,8 +13,8 @@ import pandas as pd
 import networkx as nx
 
 from simulator.service_topology import build_topology
-from simulator.metrics_generator import generate_metrics
-from simulator.fault_injector import FaultScenario, inject_fault
+from simulator.metrics_generator import generate_metrics, MetricsProfile
+from simulator.fault_injector import FaultScenario, inject_fault, inject_compound_fault
 
 
 @dataclass
@@ -45,9 +45,10 @@ class SimulatedEnvironment:
     DURATION_SECONDS = 3600  # 1 hour of simulated data
     INTERVAL_SECONDS = 10
 
-    def __init__(self, seed: int = 42):
+    def __init__(self, seed: int = 42, profile: MetricsProfile | None = None):
         self.topology = build_topology()
         self.seed = seed
+        self.profile = profile
         self.current_step = 0
         self.metrics_data: dict[str, pd.DataFrame] | None = None
         self.scenario: FaultScenario | None = None
@@ -60,8 +61,12 @@ class SimulatedEnvironment:
     def n_steps(self) -> int:
         return self.DURATION_SECONDS // self.INTERVAL_SECONDS
 
-    def reset(self, scenario: FaultScenario) -> None:
-        """Generate metrics, inject the fault, and reset state."""
+    def reset(self, scenario) -> None:
+        """Generate metrics, inject the fault, and reset state.
+
+        Accepts a FaultScenario (single fault) or a CompoundScenario
+        (multiple simultaneous faults).
+        """
         self.scenario = scenario
         self.current_step = 0
         self.actions_taken = []
@@ -74,8 +79,17 @@ class SimulatedEnvironment:
             self.DURATION_SECONDS,
             self.INTERVAL_SECONDS,
             seed=self.seed,
+            profile=self.profile,
         )
-        self.metrics_data = inject_fault(normal, scenario, self.topology)
+
+        if hasattr(scenario, "faults"):
+            self.metrics_data = inject_compound_fault(
+                normal,
+                scenario.faults,
+                self.topology,
+            )
+        else:
+            self.metrics_data = inject_fault(normal, scenario, self.topology)
 
     def step(self) -> Observation | None:
         """Advance one time step and return observation."""
@@ -107,9 +121,7 @@ class SimulatedEnvironment:
             result[svc] = df.iloc[idx].to_dict()
         return result
 
-    def get_metrics_history(
-        self, service: str, lookback_steps: int = 30
-    ) -> pd.DataFrame:
+    def get_metrics_history(self, service: str, lookback_steps: int = 30) -> pd.DataFrame:
         """Return recent metrics history for a single service."""
         if self.metrics_data is None:
             raise RuntimeError("Call reset() first")
@@ -118,9 +130,7 @@ class SimulatedEnvironment:
         end = self.current_step + 1
         return df.iloc[start:end]
 
-    def execute_action(
-        self, action: str, target: str, **kwargs: Any
-    ) -> ActionResult:
+    def execute_action(self, action: str, target: str, **kwargs: Any) -> ActionResult:
         """Simulate remediation action execution."""
         record = {
             "step": self.current_step,
@@ -171,13 +181,15 @@ class SimulatedEnvironment:
     def _handle_block_ip(self, target: str, **kwargs: Any) -> ActionResult:
         ip = kwargs.get("ip", self.scenario.metadata.get("source_ip", "unknown") if self.scenario else "unknown")
         self.blocked_ips.add(ip)
-        self.audit_log.append({
-            "timestamp": str(pd.Timestamp.now()),
-            "event": "ip_blocked",
-            "ip": ip,
-            "service": target,
-            "reason": f"Automated block due to {self.scenario.fault_type if self.scenario else 'unknown'}",
-        })
+        self.audit_log.append(
+            {
+                "timestamp": str(pd.Timestamp.now()),
+                "event": "ip_blocked",
+                "ip": ip,
+                "service": target,
+                "reason": f"Automated block due to {self.scenario.fault_type if self.scenario else 'unknown'}",
+            }
+        )
         if self.scenario and self.scenario.fault_type == "brute_force":
             self._resolve_fault(target)
         return ActionResult(True, "block_ip", target, f"IP {ip} blocked", {"ip": ip})
@@ -203,6 +215,7 @@ class SimulatedEnvironment:
             self.DURATION_SECONDS,
             self.INTERVAL_SECONDS,
             seed=self.seed,
+            profile=self.profile,
         )
         remaining = slice(self.current_step, None)
         for svc in self.metrics_data:

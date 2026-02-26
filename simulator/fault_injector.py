@@ -152,8 +152,8 @@ def _inject_cascading_failure(
     mask = _time_mask(df.index, scenario.start_time, scenario.duration)
     rng = np.random.RandomState(88)
 
-    df.loc[df.index[mask], "latency_p50_ms"] *= (2.0 + scenario.severity * 3.0)
-    df.loc[df.index[mask], "latency_p99_ms"] *= (3.0 + scenario.severity * 5.0)
+    df.loc[df.index[mask], "latency_p50_ms"] *= 2.0 + scenario.severity * 3.0
+    df.loc[df.index[mask], "latency_p99_ms"] *= 3.0 + scenario.severity * 5.0
     df.loc[df.index[mask], "error_rate"] = np.clip(
         df.loc[df.index[mask], "error_rate"] + 0.15 * scenario.severity, 0, 1
     )
@@ -171,8 +171,8 @@ def _inject_cascading_failure(
         for ds in set(next_services):
             ds_df = metrics[ds].copy()
             ds_mask = _time_mask(ds_df.index, scenario.start_time + delay_s, scenario.duration)
-            ds_df.loc[ds_df.index[ds_mask], "latency_p50_ms"] *= (1.5 + scenario.severity)
-            ds_df.loc[ds_df.index[ds_mask], "latency_p99_ms"] *= (2.0 + scenario.severity * 2)
+            ds_df.loc[ds_df.index[ds_mask], "latency_p50_ms"] *= 1.5 + scenario.severity
+            ds_df.loc[ds_df.index[ds_mask], "latency_p99_ms"] *= 2.0 + scenario.severity * 2
             ds_df.loc[ds_df.index[ds_mask], "error_rate"] = np.clip(
                 ds_df.loc[ds_df.index[ds_mask], "error_rate"] + 0.1 * scenario.severity, 0, 1
             )
@@ -192,8 +192,8 @@ def _inject_deployment_regression(
     df = metrics[target].copy()
     mask = _time_mask(df.index, scenario.start_time, scenario.duration)
 
-    df.loc[df.index[mask], "latency_p50_ms"] *= (1.5 + scenario.severity)
-    df.loc[df.index[mask], "latency_p99_ms"] *= (2.0 + scenario.severity * 2)
+    df.loc[df.index[mask], "latency_p50_ms"] *= 1.5 + scenario.severity
+    df.loc[df.index[mask], "latency_p99_ms"] *= 2.0 + scenario.severity * 2
     df.loc[df.index[mask], "error_rate"] = np.clip(
         df.loc[df.index[mask], "error_rate"] + 0.08 * scenario.severity, 0, 1
     )
@@ -216,8 +216,8 @@ def _inject_anomalous_access(
     df.loc[df.index[mask], "error_rate"] += 0.06 * scenario.severity + noise
     df["error_rate"] = df["error_rate"].clip(0, 1)
 
-    df.loc[df.index[mask], "latency_p99_ms"] *= (1.4 + 0.5 * scenario.severity)
-    df.loc[df.index[mask], "request_rate"] *= (1.2 + 0.3 * scenario.severity)
+    df.loc[df.index[mask], "latency_p99_ms"] *= 1.4 + 0.5 * scenario.severity
+    df.loc[df.index[mask], "request_rate"] *= 1.2 + 0.3 * scenario.severity
     metrics[target] = df
     return metrics
 
@@ -241,16 +241,70 @@ def _inject_ddos(
     df.loc[df.index[mask], "cpu_percent"] = np.clip(
         df.loc[df.index[mask], "cpu_percent"] + 30 * scenario.severity, 0, 100
     )
-    df.loc[df.index[mask], "latency_p50_ms"] *= (2.0 + scenario.severity * 3.0)
-    df.loc[df.index[mask], "latency_p99_ms"] *= (3.0 + scenario.severity * 5.0)
+    df.loc[df.index[mask], "latency_p50_ms"] *= 2.0 + scenario.severity * 3.0
+    df.loc[df.index[mask], "latency_p99_ms"] *= 3.0 + scenario.severity * 5.0
     metrics[target] = df
 
     downstream = get_downstream(topology, target)
     for ds in downstream:
         ds_df = metrics[ds].copy()
         ds_mask = _time_mask(ds_df.index, scenario.start_time + 10, scenario.duration)
-        ds_df.loc[ds_df.index[ds_mask], "request_rate"] *= (multiplier * 0.6)
-        ds_df.loc[ds_df.index[ds_mask], "latency_p50_ms"] *= (1.5 + scenario.severity)
+        ds_df.loc[ds_df.index[ds_mask], "request_rate"] *= multiplier * 0.6
+        ds_df.loc[ds_df.index[ds_mask], "latency_p50_ms"] *= 1.5 + scenario.severity
+        metrics[ds] = ds_df
+
+    return metrics
+
+
+def _inject_network_partition(
+    metrics: dict[str, pd.DataFrame],
+    scenario: FaultScenario,
+    topology: nx.DiGraph,
+) -> dict[str, pd.DataFrame]:
+    """Network partition: intermittent packet loss, latency jitter, request drops.
+
+    This fault has no clean single-metric signature — it manifests as
+    sporadic latency spikes, intermittent request drops (not sustained),
+    and fluctuating error rates across the partitioned service and its
+    immediate neighbours.  Designed to be unrecognizable to agents
+    trained on the 8 standard fault types.
+    """
+    target = scenario.target_service
+    df = metrics[target].copy()
+    mask = _time_mask(df.index, scenario.start_time, scenario.duration)
+    rng = np.random.RandomState(33)
+    fault_len = int(mask.sum())
+
+    packet_loss = rng.uniform(0.1, 0.5, size=fault_len) * scenario.severity
+    intermittent = rng.random(fault_len) < (0.4 + 0.3 * scenario.severity)
+
+    lat_jitter = rng.exponential(30, size=fault_len) * scenario.severity * intermittent
+    df.loc[df.index[mask], "latency_p50_ms"] += lat_jitter
+    df.loc[df.index[mask], "latency_p99_ms"] += lat_jitter * rng.uniform(2, 4, fault_len)
+
+    req_drop = packet_loss * intermittent * 0.4
+    df.loc[df.index[mask], "request_rate"] *= 1 - req_drop
+
+    err_bump = packet_loss * intermittent * 0.12
+    df.loc[df.index[mask], "error_rate"] = np.clip(df.loc[df.index[mask], "error_rate"].values + err_bump, 0, 1)
+
+    cpu_bump = rng.uniform(0, 8, size=fault_len) * scenario.severity * intermittent
+    df.loc[df.index[mask], "cpu_percent"] = np.clip(df.loc[df.index[mask], "cpu_percent"].values + cpu_bump, 0, 100)
+    metrics[target] = df
+
+    downstream = get_downstream(topology, target)
+    for ds in downstream:
+        ds_df = metrics[ds].copy()
+        ds_mask = _time_mask(ds_df.index, scenario.start_time + 10, scenario.duration)
+        ds_fault_len = int(ds_mask.sum())
+        ds_intermittent = rng.random(ds_fault_len) < 0.3 * scenario.severity
+        ds_lat = rng.exponential(15, size=ds_fault_len) * scenario.severity * ds_intermittent
+        ds_df.loc[ds_df.index[ds_mask], "latency_p50_ms"] += ds_lat
+        ds_df.loc[ds_df.index[ds_mask], "latency_p99_ms"] += ds_lat * 2
+        ds_err = rng.uniform(0, 0.04, size=ds_fault_len) * ds_intermittent
+        ds_df.loc[ds_df.index[ds_mask], "error_rate"] = np.clip(
+            ds_df.loc[ds_df.index[ds_mask], "error_rate"].values + ds_err, 0, 1
+        )
         metrics[ds] = ds_df
 
     return metrics
@@ -265,6 +319,7 @@ _FAULT_HANDLERS = {
     "deployment_regression": _inject_deployment_regression,
     "anomalous_access": _inject_anomalous_access,
     "ddos": _inject_ddos,
+    "network_partition": _inject_network_partition,
 }
 
 
@@ -279,3 +334,23 @@ def inject_fault(
     if handler is None:
         raise ValueError(f"Unknown fault type: {scenario.fault_type}")
     return handler(metrics, scenario, topology)
+
+
+def inject_compound_fault(
+    normal_metrics: dict[str, pd.DataFrame],
+    scenarios: list[FaultScenario],
+    topology: nx.DiGraph,
+) -> dict[str, pd.DataFrame]:
+    """Inject multiple simultaneous faults. Returns modified copy.
+
+    Faults are applied sequentially on the same metric set, so their
+    effects compound realistically (e.g. DDoS request spike + deployment
+    regression latency increase stack).
+    """
+    metrics = {svc: df.copy() for svc, df in normal_metrics.items()}
+    for scenario in scenarios:
+        handler = _FAULT_HANDLERS.get(scenario.fault_type)
+        if handler is None:
+            raise ValueError(f"Unknown fault type: {scenario.fault_type}")
+        metrics = handler(metrics, scenario, topology)
+    return metrics

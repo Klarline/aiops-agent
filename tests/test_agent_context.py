@@ -10,12 +10,10 @@ Validates:
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 from agent.agent import AIOpsAgent
 from orchestrator.orchestrator import Orchestrator
 from evaluation.benchmark_runner import train_ensemble
-from simulator.service_topology import METRIC_NAMES
 
 
 def _make_agent_with_history(scenario_id: str, steps: int = 30):

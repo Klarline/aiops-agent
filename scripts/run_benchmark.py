@@ -4,6 +4,7 @@ Usage:
     python scripts/run_benchmark.py --seed 42 --episodes 13
     python scripts/run_benchmark.py --fast  # Quick run with 3 episodes
     python scripts/run_benchmark.py --leaderboard  # Compare all agents
+    python scripts/run_benchmark.py --train-profile baseline --eval-profile moderate_shift
 """
 
 from __future__ import annotations
@@ -16,21 +17,41 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from evaluation.benchmark_runner import run_benchmark, run_leaderboard
 from evaluation.report_generator import (
-    generate_report, generate_leaderboard_report, save_expected_results,
+    generate_report,
+    generate_leaderboard_report,
+    save_expected_results,
 )
+from simulator.metrics_generator import PROFILES
 
 
 def main():
+    profile_names = list(PROFILES.keys())
     parser = argparse.ArgumentParser(description="Run AIOpsLab benchmark evaluation")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--episodes", type=int, default=13, help="Episodes per scenario")
     parser.add_argument("--fast", action="store_true", help="Quick run (3 episodes)")
-    parser.add_argument("--leaderboard", action="store_true",
-                        help="Run all agents and show comparative leaderboard")
+    parser.add_argument("--leaderboard", action="store_true", help="Run all agents and show comparative leaderboard")
+    parser.add_argument(
+        "--train-profile",
+        choices=profile_names,
+        default=None,
+        help="Metrics profile for training data (default: baseline)",
+    )
+    parser.add_argument(
+        "--eval-profile",
+        choices=profile_names,
+        default=None,
+        help="Metrics profile for evaluation episodes (default: baseline)",
+    )
     args = parser.parse_args()
 
     if args.fast:
         args.episodes = 3
+
+    if args.train_profile or args.eval_profile:
+        tp = args.train_profile or "baseline"
+        ep = args.eval_profile or "baseline"
+        print(f"Profiles: train={tp}, eval={ep}")
 
     if args.leaderboard:
         _run_leaderboard(args)
@@ -40,7 +61,12 @@ def main():
 
 def _run_single(args):
     print(f"Running benchmark (seed={args.seed}, episodes/scenario={args.episodes})...")
-    results = run_benchmark(seed=args.seed, episodes_per_scenario=args.episodes)
+    results = run_benchmark(
+        seed=args.seed,
+        episodes_per_scenario=args.episodes,
+        train_profile=args.train_profile,
+        eval_profile=args.eval_profile,
+    )
 
     _print_results(results)
 
@@ -52,12 +78,14 @@ def _run_single(args):
 
 
 def _run_leaderboard(args):
-    print(f"Running leaderboard benchmark (seed={args.seed}, "
-          f"episodes/scenario={args.episodes})...")
+    print(f"Running leaderboard benchmark (seed={args.seed}, episodes/scenario={args.episodes})...")
     print("=" * 60)
 
     leaderboard = run_leaderboard(
-        seed=args.seed, episodes_per_scenario=args.episodes,
+        seed=args.seed,
+        episodes_per_scenario=args.episodes,
+        train_profile=args.train_profile,
+        eval_profile=args.eval_profile,
     )
 
     print("\n" + "=" * 60)

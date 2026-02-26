@@ -12,7 +12,7 @@ Validates:
 from __future__ import annotations
 
 from agent.agent import AIOpsAgent
-from agent.tools import ToolRegistry, ToolResult, TERMINAL_TOOLS
+from agent.tools import ToolRegistry, ToolResult
 from orchestrator.orchestrator import Orchestrator
 from evaluation.benchmark_runner import train_ensemble
 
