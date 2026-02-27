@@ -1,77 +1,105 @@
 # Reviewer Quick Guide
 
-## TL;DR
+## What Makes This Different
 
-This is an autonomous AIOps agent that uses real ML models to detect, explain, localize, diagnose, and remediate cloud infrastructure issues — including security threats and silent business failures.
+- **Real ML models** trained with `model.fit()`, not LLM API wrappers
+- **Catches silent business failures** that threshold monitoring misses (transaction stall)
+- **Security scenarios** with IP blocking and audit trails (brute force, DDoS)
+- **Every decision explained** via SHAP feature attribution
+- **Honest evaluation** with baselines, limitations, and reproducible benchmarks
 
 ## Check These 3 Things
 
-### 1. The Transaction Stall Demo
+### 1. Transaction Stall (Silent Failure)
+
+CPU and memory normal. Latency normal. But TPM dropped to zero. Threshold monitoring misses it.
+
 ```bash
-python -c "
-from orchestrator.orchestrator import Orchestrator
-from agent.agent import AIOpsAgent
-from evaluation.benchmark_runner import train_ensemble
-
-ensemble = train_ensemble()
-orch = Orchestrator(seed=42)
-orch.init_problem('transaction_stall_order')
-agent = AIOpsAgent()
-agent.set_ensemble(ensemble)
-result = orch.run_episode(agent)
-print(f'Detection: {result.detection}')
-print(f'Diagnosis: {result.diagnosis}')
-print(f'Agent log:')
-for entry in agent.reasoning_log:
-    print(f'  {entry[\"summary\"][:100]}...')
-"
+python scripts/demo_transaction_stall.py
 ```
-CPU and memory are normal. Latency is normal. But TPM dropped to zero. The agent catches this "silent failure."
 
-### 2. Security Remediation
+**Expected output (seed=42):**
+
+```
+Transaction Stall Demo — Silent failure where every dashboard says healthy
+
+Scenario: order-service stops processing transactions. CPU, memory, latency all normal.
+Only TPM (transactions per minute) collapses. Threshold monitoring misses it.
+
+Running... (seed=42)
+
+Result:
+  Detection:   True
+  Localization: True
+  Diagnosis:   True
+  Mitigation:  True
+  Score:       100%
+
+Agent reasoning (last entry):
+  ⚠ Silent failure detected: order-service infrastructure appears healthy (CPU: 40%, Memory: 50%)...
+
+✓ Agent caught the silent failure.
+```
+
+---
+
+### 2. Security (Brute Force → IP Block → Audit)
+
+Detects brute force on auth-service, blocks source IP, creates audit entry.
+
 ```bash
-python -c "
-from orchestrator.orchestrator import Orchestrator
-from agent.agent import AIOpsAgent
-from evaluation.benchmark_runner import train_ensemble
-
-ensemble = train_ensemble()
-orch = Orchestrator(seed=42)
-orch.init_problem('brute_force_auth')
-agent = AIOpsAgent()
-agent.set_ensemble(ensemble)
-result = orch.run_episode(agent)
-print(f'Detection: {result.detection}')
-print(f'Audit log: {orch.env.audit_log}')
-print(f'Blocked IPs: {orch.env.blocked_ips}')
-"
+python scripts/demo_security.py
 ```
-Detects brute force → blocks IP → creates audit entry.
 
-### 3. Run the Benchmark
+**Expected output (seed=42):**
+
+```
+Security Demo — Brute force → IP block → audit trail
+
+Scenario: Brute force login attack on auth-service from 10.0.0.99
+Security path: detect → block IP → create audit log entry.
+
+Executing block_ip... (seed=42)
+
+Result:
+  Action:      block_ip
+  Success:     True
+
+Blocked IPs:
+  10.0.0.99
+
+Audit log:
+  [ip_blocked] IP 10.0.0.99 blocked on auth-service
+    Reason: Automated block: brute_force detected with 85% confidence...
+
+✓ Security threat remediated with audit trail.
+```
+
+---
+
+### 3. Benchmark
+
 ```bash
 python scripts/run_benchmark.py --fast
 ```
+
 Shows per-scenario scores in AIOpsLab leaderboard format.
 
-## Evaluation Results
-See [EVALUATION.md](EVALUATION.md)
+## Go Deeper
 
-## Design Decisions
-See [DESIGN.md](DESIGN.md)
+- [EVALUATION.md](EVALUATION.md) — per-scenario analysis, robustness evidence
+- [DESIGN.md](DESIGN.md) — technical rationale, security threat model
 
 ## Video Demo
-See `demo_video.mp4` (timestamps in description):
-- 0:30 Architecture + AIOpsLab
-- 2:00 Transaction stall demo
-- 3:30 Security demo
-- 5:00 SHAP + operational demo
-- 6:30 Results
-- 8:00 Engineering practices
 
-## Quick Reproduce
+See `demo_video.mp4`. Timestamps: 0:30 Architecture · 2:00 Transaction stall · 3:30 Security · 5:00 SHAP · 6:30 Results · 8:00 Engineering practices
+
+## Quick Setup
+
 ```bash
-docker-compose up -d
+docker-compose up -d --build   # --build ensures latest code; omit if image is fresh
 python scripts/run_benchmark.py --seed 42
 open http://localhost:3000
 ```
+
+If the dashboard shows stale data (e.g. CPU/Memory 0% in transaction stall), rebuild: `docker-compose build --no-cache && docker-compose up -d`

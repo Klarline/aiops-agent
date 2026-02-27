@@ -117,14 +117,17 @@ def generate_summary(
             f"{_shap_context(shap_top)} Action: {_ACTION_LABELS.get(action, action)}."
         )
 
+    cpu = ctx.get("cpu", 0)
+    memory = ctx.get("memory", 0)
+
     defaults = {
         "service": service,
         "action": _ACTION_LABELS.get(action, action),
         "severity": _severity_label(severity),
         "shap_context": _shap_context(shap_top),
         "timestamp": ctx.get("timestamp", "now"),
-        "cpu": ctx.get("cpu", 0),
-        "memory": ctx.get("memory", 0),
+        "cpu": cpu,
+        "memory": memory,
         "rate": ctx.get("rate", 0.5),
         "zscore": ctx.get("zscore", 3.0),
         "status": ctx.get("status", "Metrics recovering"),

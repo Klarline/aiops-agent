@@ -54,11 +54,13 @@ The SHAP waterfall plots show the Isolation Forest's decision decomposed into pe
 
 ## Honest Analysis of Weaknesses
 
-**Anomalous access (Diag 77%)**: This is the hardest scenario by design — the signal is subtle (error_rate +3%, latency_p99 +40%) and overlaps with normal noise. In ~23% of episodes, the diagnosis misclassifies as "unknown" or a competing pattern matches first. In production, anomalous database access rarely has a clean single-metric signature; this result is realistic.
+**Anomalous access (Diag 77%)**: This is the hardest scenario by design — the signal is subtle (error_rate +3%, latency_p99 +40%) and overlaps with normal noise. In ~23% of episodes, the diagnosis misclassifies as "unknown" or a competing pattern matches first. *Next: per-service adaptive thresholds calibrated to historical baselines to reduce false positives.*
 
-**Memory leak localization (Loc 92%)**: In 1 of 13 episodes, the localizer picks the wrong service because the memory increase in the first few minutes is smaller than normal cross-service metric variance. Memory leaks are inherently harder to localize early because the signal starts weak and grows over time.
+**Memory leak localization (Loc 92%)**: In 1 of 13 episodes, the localizer picks the wrong service because the memory increase in the first few minutes is smaller than normal cross-service metric variance. Memory leaks are inherently harder to localize early because the signal starts weak and grows over time. *Next: longer observation window or trend-weighted localization.*
 
-**Deployment regression diagnosis (Diag 92%)**: In 1 of 13 episodes, the deployment regression's latency shift is mild enough that the pattern check's threshold isn't met. A production system would benefit from adaptive thresholds calibrated to each service's historical variance.
+**Deployment regression diagnosis (Diag 92%)**: In 1 of 13 episodes, the deployment regression's latency shift is mild enough that the pattern check's threshold isn't met. *Next: adaptive thresholds calibrated to each service's historical variance.*
+
+**Transaction stall mitigation**: The agent correctly detects and localizes but can only alert — it cannot auto-fix business logic faults (deadlocks, broken consumers). *This is correct behavior*: the value is fast detection and escalation; autonomous remediation of unknown business state would be unsafe.
 
 **Why baselines score what they do**:
 - *Static Threshold (30%)*: Catches CPU saturation (CPU > 80%) and partially catches DDoS (high latency triggers restart). Fails on all other scenarios — no single metric exceeds a fixed threshold for transaction stalls, memory leaks, or cascading failures.

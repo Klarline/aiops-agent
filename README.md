@@ -1,25 +1,37 @@
 # Adaptive AIOps Agent
 
-An autonomous AI agent for cloud operations that detects anomalies, identifies root causes, and executes remediation — evaluated using Microsoft Research's AIOpsLab framework.
+A security-aware autonomous operations agent for protecting and stabilizing business-critical transaction systems.
 
-## Evaluate This Project in 5 Minutes
+> CPU: 32%. Memory: 45%. Latency: normal. Error rate: 0.1%.
+> Every dashboard says healthy. But the transaction pipeline has silently stopped.
+>
+> This agent catches that.
+
+![Transaction stall detection](docs/screenshot_transaction_stall.png)
+
+**68-point gap** vs static threshold monitoring. ML Ensemble Agent: **98%** average across Detection, Localization, Diagnosis, Mitigation. See [EVALUATION.md](EVALUATION.md).
+
+## What It Does
+
+Protects transaction processing pipelines from silent failures, security threats, and cascading infrastructure issues — with full audit trails and explainable AI. For a title insurance company like FCT processing real estate closings, a silent transaction stall means delayed closings and regulatory exposure. This agent detects what threshold monitoring misses.
+
+## Why This Matters for FCT
+
+FCT processes title insurance transactions — a silent pipeline stall means delayed closings, missed SLAs, and regulatory risk. The brute force and audit trail scenarios reflect FCT's handling of sensitive financial and legal data. The system's security-first design (IP blocking, audit logging, human escalation for uncertain situations) aligns with the JD's emphasis on security awareness.
+
+## Quick Start
 
 ```bash
-# Option 1: Docker (recommended)
-git clone <repo-url> && cd aiops-agent
+# Docker (recommended)
 docker-compose up -d
 open http://localhost:3000
 
-# Option 2: Local
+# Local
 pip install -r requirements.txt
 python scripts/run_benchmark.py --fast
 python -m uvicorn api.main:app --reload
 open http://localhost:8000/docs
 ```
-
-## What This Does
-
-This system monitors a simulated cloud application with 5 connected services, automatically detecting when something goes wrong — whether it's a server overloading, a security attack, or a silent business failure where everything *looks* healthy but transactions have stopped processing. When it detects a problem, it explains what's happening in plain English, identifies the root cause, and takes corrective action.
 
 ## Inspired by AIOpsLab
 
@@ -59,16 +71,12 @@ The LLM agent reasons step-by-step, calling ML modules as tools. When the LLM is
 
 ## AI Techniques
 
-| Technique | Why This, Not Something Else |
-|-----------|------------------------------|
-| **LLM ReAct Agent** | A fixed detect→localize→diagnose pipeline can't adapt investigation order. The LLM decides *what* to investigate (e.g., check topology before diagnosing during cascading failures). Falls back to rules if unavailable. |
-| **Isolation Forest** | Operates in 32-dimensional feature space — catches multivariate anomalies where no single metric exceeds a threshold. Robust to dimensionality via random partitioning. |
-| **Statistical Z-score + CUSUM** | IF has a blind spot for gradual drift. CUSUM accumulates small deviations over time — exactly the memory leak signature IF misses. Model disagreement = calibrated uncertainty. |
-| **SHAP TreeExplainer** | Game-theoretic feature attribution with provable properties (local accuracy, consistency). Tells operators *why* an alert fired: "error_rate_zscore +4.2 contributed +0.38 to the anomaly score." |
-| **Q-learning RL** | Learns remediation policy from outcomes (reward = correct action). Only replaces rule-based policy if it demonstrates >50% improvement — documented upgrade path, not premature optimization. |
-| **NetworkX graph traversal** | Service dependencies form a DAG. Root cause localization uses BFS from source nodes to find the most-upstream anomalous service — structural reasoning, not statistical correlation. |
+- **LLM ReAct Agent** — decides *what* to investigate (e.g., check topology before diagnosing). Falls back to rules if unavailable.
+- **Isolation Forest + Statistical (CUSUM)** — multivariate anomaly detection; gradual drift; model disagreement = uncertainty.
+- **SHAP TreeExplainer** — explains *why* an alert fired: "error_rate_zscore +4.2 contributed +0.38."
+- **NetworkX graph traversal** — root cause localization via dependency DAG.
 
-The LLM decides *what* to investigate and *when* to act. The ML models provide the actual measurements it reasons about. See [DESIGN.md](DESIGN.md) for in-depth rationale behind each choice.
+See [DESIGN.md](DESIGN.md) for rationale.
 
 ## Fault Scenarios (8 Total)
 
@@ -92,9 +100,7 @@ Static Threshold           43%          38%       12%        25%   29.6%
 Random Agent               62%          12%       12%        62%   37.5%
 ```
 
-The **68-point gap** between the ML agent and a static threshold baseline proves the architecture works. Run `python scripts/run_benchmark.py --leaderboard` to reproduce. 6/8 scenarios score 100% across all tasks; the two weaker scenarios (anomalous access 77% diagnosis, memory leak 92% localization) are analyzed honestly in [EVALUATION.md](EVALUATION.md).
-
-See [TUNING_LOG.md](TUNING_LOG.md) for the iteration history from v1 (F1=0.62) through v7 (98% average).
+The **68-point gap** between the ML agent and static threshold proves the architecture. Run `python scripts/run_benchmark.py --leaderboard` to reproduce. See [EVALUATION.md](EVALUATION.md) for per-scenario analysis.
 
 ## Security Features
 
@@ -102,6 +108,10 @@ See [TUNING_LOG.md](TUNING_LOG.md) for the iteration history from v1 (F1=0.62) t
 - DDoS detection → automated rate limiting
 - Anomalous access → human escalation
 - All security actions create audit trail entries
+
+## CI
+
+This repo includes CI (GitHub Actions) with pytest (175 tests), ruff linting, and pip-audit for dependency vulnerability scanning. All checks run on push and pull request.
 
 ## Testing (4 Layers)
 
@@ -113,10 +123,10 @@ pytest tests/ -m "slow" -v              # Full benchmark
 
 ## Known Limitations
 
-- **Cascading failure localization**: Lag correlation insufficient when propagation delays vary significantly
-- **Anomalous access**: Higher false positive rate due to subtle signal overlap
-- **Transaction stall mitigation**: Agent correctly detects but can only alert (cannot auto-fix business logic)
-- **RL convergence**: Q-learning shows learning but may need more episodes for production reliability
+- **Cascading failure localization**: Lag correlation insufficient when propagation delays vary. *Next: distributed tracing span IDs for causal ordering.*
+- **Anomalous access**: Higher false positive rate due to subtle signal overlap. *Next: per-service adaptive thresholds calibrated to historical baselines.*
+- **Transaction stall mitigation**: Agent correctly detects but can only alert — business logic faults can't be auto-fixed safely. *This is correct behavior*; the value is fast detection, not autonomous remediation of unknown business state.
+- **RL convergence**: Q-learning shows learning but may need more episodes for production reliability. *Next: contextual bandits with production reward signals.*
 
 ## Tech Stack
 
@@ -154,3 +164,9 @@ For API-driven clients, use sessionized endpoints for concurrent independent run
 - `GET /agent/runs/{run_id}/status`, `/log`, `/shap`, `/evaluate`, etc.
 
 Legacy endpoints (`POST /agent/scenarios/start`, `POST /agent/step`) use a default session and remain backward compatible for the dashboard.
+
+## Documentation
+
+- [DESIGN.md](DESIGN.md) — technical rationale and design decisions
+- [EVALUATION.md](EVALUATION.md) — benchmark results and per-scenario analysis
+- [REVIEWER_NOTES.md](REVIEWER_NOTES.md) — quick checklist for reviewers

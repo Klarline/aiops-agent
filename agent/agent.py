@@ -440,13 +440,15 @@ class AIOpsAgent:
             blast = get_blast_radius(obs.topology, root_service)
             gate = self.uncertainty_gate.check(root_result, diagnosis.severity, blast)
             if gate.should_escalate:
+                ctx = self._build_context(obs, root_service, diagnosis)
+                ctx["reason"] = gate.reason
                 summary = generate_summary(
                     diagnosis.fault_type,
                     root_service,
                     "alert_human",
                     diagnosis.severity,
                     shap_explanation.top_features if shap_explanation else None,
-                    {"reason": gate.reason},
+                    ctx,
                 )
                 self._log_reasoning(obs, diagnosis, "alert_human", summary, gate.reason)
                 self._action_count += 1
@@ -527,8 +529,19 @@ class AIOpsAgent:
         topo_baseline = node_data.get("baseline", {})
         baseline = self._compute_baseline(history, fallback=topo_baseline)
 
-        cpu = metrics.get("cpu_percent", 0)
-        memory = metrics.get("memory_percent", 0)
+        # Use metrics first; if missing/zero, use baseline from history, then topology
+        cpu_raw = metrics.get("cpu_percent")
+        memory_raw = metrics.get("memory_percent")
+        cpu = (
+            cpu_raw
+            if (cpu_raw is not None and isinstance(cpu_raw, (int, float)) and cpu_raw >= 1)
+            else baseline.get("cpu_percent") or topo_baseline.get("cpu_percent")
+        )
+        memory = (
+            memory_raw
+            if (memory_raw is not None and isinstance(memory_raw, (int, float)) and memory_raw >= 1)
+            else baseline.get("memory_percent") or topo_baseline.get("memory_percent")
+        )
         tpm = metrics.get("transactions_per_minute", 0)
         error_rate = metrics.get("error_rate", 0)
         request_rate = metrics.get("request_rate", 0)
@@ -568,8 +581,8 @@ class AIOpsAgent:
 
         context: dict[str, Any] = {
             "timestamp": str(obs.timestamp),
-            "cpu": cpu,
-            "memory": memory,
+            "cpu": cpu if cpu is not None else 0,
+            "memory": memory if memory is not None else 0,
             "tpm": tpm,
             "tpm_baseline": tpm_baseline,
             "rate": mem_rate,

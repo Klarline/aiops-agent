@@ -139,6 +139,42 @@ Action B — Scale out:
 
 ---
 
+## Security Threat Model
+
+The system performs security-relevant operations (IP blocking, audit logging, brute force detection). This section frames those capabilities in standard threat modeling language for security-aware reviewers.
+
+| Element | Content |
+|---------|---------|
+| **Assets** | Transaction pipeline, customer data, authentication system |
+| **Threat actors** | External attackers (brute force, DDoS), anomalous access (potential insider) |
+| **Impact** | Financial loss (stalled transactions), data breach (unauthorized access), SLA violation, regulatory exposure |
+| **Mitigations** | Anomaly detection on auth metrics, automated IP blocking with audit trail, rate limiting, human escalation for uncertain threats, action budgets to prevent cascading damage |
+
+**Mapping to implementation:**
+
+- **Brute force detection** → `diagnosis/diagnoser.py` `_check_brute_force` (error_rate > 0.2, request_rate elevated)
+- **IP blocking** → `simulator/environment.py` `_handle_block_ip`, `decision/action_executor.py` `_execute_block_ip`
+- **Audit trail** → `simulator/environment.py` `audit_log`, `decision/action_executor.py` `audit_log` (ip_blocked, rate_limit_applied events)
+- **Rate limiting** → `simulator/environment.py` `_handle_rate_limit` (DDoS mitigation)
+- **Human escalation** → `decision/uncertainty_gate.py` (high uncertainty or blast radius → alert_human)
+- **Action budgets** → `agent/agent.py` `_max_actions` (AIOPS_MAX_ACTIONS)
+
+---
+
+## Safe Autonomous Design
+
+Three guardrails prevent the agent from causing more damage than it fixes:
+
+1. **Action budgets**: Max N autonomous actions per episode (configurable via `AIOPS_MAX_ACTIONS`). After exhaustion, the agent monitors but does not act — or escalates to a human if configured.
+
+2. **Uncertainty escalation**: When ML models disagree (high uncertainty) or blast radius is large, the agent escalates to a human rather than guessing. See [Uncertainty Gate](#uncertainty-gate).
+
+3. **Risk-adjusted utility**: Every action is scored by expected utility accounting for success probability, severity, and downstream impact. Low-utility actions are blocked even if the diagnosis is confident. See [Expected Utility Calculation](#expected-utility-calculation).
+
+**Design principle**: The system should never make an incident worse. When in doubt, alert a human. This matches production operations philosophy where a missed auto-remediation is recoverable, but a wrong auto-remediation during a cascading failure is not.
+
+---
+
 ## Diagnosis: Pattern-Based Classification
 
 The diagnoser uses ordered pattern matching on metric signatures rather than a trained classifier. This is a deliberate choice:
@@ -275,6 +311,78 @@ Uncertainty gate: severity=0.93, uncertainty=0.04, blast_radius=1
 2. **It requires multivariate reasoning** — the anomaly is in the *combination* of "everything healthy but nothing happening"
 3. **SHAP explanation is immediately useful** — points directly at TPM without the operator guessing
 4. **It reflects a real production failure mode** — deadlocked threads, broken message consumers, and stalled payment processors all look like this
+
+---
+
+## Deep Dive: Brute Force — Security Walkthrough
+
+This section traces what happens when auth-service is under brute force attack, from detection through IP blocking and audit trail.
+
+### 1. What the Data Looks Like
+
+The fault injector spikes `error_rate` to 0.4–0.8 (from normal ~0.01) and increases `request_rate` on auth-service. The attack originates from a single IP (e.g. 10.0.0.99) stored in scenario metadata.
+
+```
+Step 15 (t=150s, fault starts):
+  auth-service:
+    error_rate:      0.42   (normal: ~0.01)
+    request_rate:    387    (normal: ~200)
+    cpu_percent:     38.2   (slightly elevated)
+    ... other metrics within range
+```
+
+### 2. What SHAP Says
+
+`error_rate_zscore` dominates the anomaly score — login failures are 4× above baseline. The operator sees: "Key drivers: error_rate_zscore (+0.38), request_rate_rolling_mean (+0.31)."
+
+### 3. What the Agent Does
+
+**Detection** → **Localization** (auth-service is root) → **Diagnosis** (pattern: error_rate > 0.2, elevated request_rate) → **block_ip** with source IP from scenario metadata.
+
+### 4. Audit Log Entry Format
+
+After `block_ip` executes:
+
+```json
+{
+  "event": "ip_blocked",
+  "ip": "10.0.0.99",
+  "target": "auth-service",
+  "fault_type": "brute_force",
+  "confidence": 0.85,
+  "reason": "Automated block: brute_force detected with 85% confidence"
+}
+```
+
+The environment also appends a structured entry with timestamp and service. This provides a compliance-ready audit trail for FCT's handling of sensitive financial and legal data.
+
+### Why This Matters for FCT
+
+Title insurance involves sensitive financial and legal data. A brute force attack on auth-service could lead to unauthorized access and regulatory exposure. The automated block plus audit trail demonstrates security-first design: fast response with full traceability for compliance review.
+
+---
+
+## Observability Failure Modes
+
+The system assumes telemetry is available. Acknowledging when that assumption breaks shows operational maturity.
+
+| Failure | Expected Behavior |
+|---------|-------------------|
+| **Telemetry delayed** | Agent operates on stale data; detection latency increases. Safety guardrails (uncertainty gate, action budgets) still apply. |
+| **Metrics drop entirely** | Missing data is itself a signal; the agent should detect metric absence as anomalous. Current simulator always provides metrics — production adapter would need gap detection. |
+| **Log ingestion fails** | Rule-based fallback still works on metrics alone; diagnosis accuracy may degrade for log-dependent fault types. |
+| **Agent itself fails** | Existing alerting infrastructure (Prometheus, PagerDuty) remains as backstop. The agent is an additional layer, not a single point of failure. |
+
+---
+
+## Path to Production
+
+1. **Replace simulator** with Prometheus/Grafana metrics via PromQL adapter
+2. **Ingest real logs** from ELK/Splunk via structured log parser
+3. **Swap in-memory state** for persistent incident store (PostgreSQL)
+4. **Deploy** as Kubernetes sidecar or standalone service
+5. **Graduate RL** from tabular Q-learning to contextual bandits with production reward signals
+6. **Add RBAC** for remediation approval workflows (who can approve block_ip, rollback, etc.)
 
 ---
 

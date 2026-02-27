@@ -39,3 +39,15 @@ jobs:
         run: pip install ruff==0.1.8
       - name: Lint
         run: ruff check . --ignore E501
+
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt pip-audit
+      - name: Check for known vulnerabilities
+        run: pip-audit
