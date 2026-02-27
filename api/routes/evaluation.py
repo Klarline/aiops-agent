@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from evaluation.benchmark_runner import run_benchmark
 from evaluation.report_generator import generate_report
+from api.auth import require_api_key
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ class BenchmarkRequest(BaseModel):
     episodes: int = 3
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(require_api_key)])
 async def run_evaluation(req: BenchmarkRequest):
     """Trigger a benchmark run."""
     results = run_benchmark(

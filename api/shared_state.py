@@ -2,13 +2,17 @@
 
 Single source of truth for the orchestrator, agent, and ensemble
 so that metrics, agent, and evaluation routes all reference the same simulation.
+
+Phase C: Sessionized run state with per-run isolation and incident IDs.
 """
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from orchestrator.orchestrator import Orchestrator
 from agent.agent import AIOpsAgent
@@ -18,13 +22,15 @@ from detection.explainer import ShapExplainer
 from simulator.service_topology import build_topology
 from simulator.metrics_generator import generate_metrics
 
-import pandas as pd
+DEFAULT_RUN_ID = "default"
 
 
-class SimState:
-    """Mutable simulation state shared across all API routes."""
+class RunSession:
+    """Per-run simulation state with run_id and incident_id for traceability."""
 
-    def __init__(self):
+    def __init__(self, run_id: str, incident_id: str | None = None):
+        self.run_id = run_id
+        self.incident_id = incident_id or run_id
         self.orchestrator: Orchestrator | None = None
         self.agent: AIOpsAgent | None = None
         self.ensemble: EnsembleDetector | None = None
@@ -52,7 +58,8 @@ class SimState:
             )
         return self.ensemble
 
-    def reset(self, scenario_id: str, seed: int = 42):
+    def reset(self, scenario_id: str, seed: int = 42, incident_id: str | None = None):
+        self.incident_id = incident_id or str(uuid.uuid4())
         ensemble = self.ensure_ensemble()
         orch = Orchestrator(seed=seed)
         ctx = orch.init_problem(scenario_id)
@@ -119,6 +126,8 @@ class SimState:
             orch.history.append({
                 "action": action,
                 "step": orch.env.current_step,
+                "incident_id": self.incident_id,
+                "run_id": self.run_id,
             })
 
         return {
@@ -131,6 +140,8 @@ class SimState:
             "metrics": snapshot,
             "anomaly_scores": per_svc_scores,
             "resolved": resolved,
+            "incident_id": self.incident_id,
+            "run_id": self.run_id,
         }
 
     def get_shap_values(self, service: str | None = None) -> dict[str, Any]:
@@ -186,4 +197,33 @@ class SimState:
         return result
 
 
-state = SimState()
+class RunRegistry:
+    """In-memory registry of run sessions. run_id -> RunSession."""
+
+    def __init__(self):
+        self._sessions: dict[str, RunSession] = {}
+
+    def get_default(self) -> RunSession:
+        """Return the default/legacy session, creating it if needed."""
+        if DEFAULT_RUN_ID not in self._sessions:
+            self._sessions[DEFAULT_RUN_ID] = RunSession(
+                run_id=DEFAULT_RUN_ID,
+                incident_id=str(uuid.uuid4()),
+            )
+        return self._sessions[DEFAULT_RUN_ID]
+
+    def create_run(self) -> tuple[str, str, RunSession]:
+        """Create a new run session. Returns (run_id, incident_id, session)."""
+        run_id = str(uuid.uuid4())
+        incident_id = str(uuid.uuid4())
+        session = RunSession(run_id=run_id, incident_id=incident_id)
+        self._sessions[run_id] = session
+        return run_id, incident_id, session
+
+    def get_session(self, run_id: str) -> RunSession | None:
+        """Return session by run_id, or None if not found."""
+        return self._sessions.get(run_id)
+
+
+run_registry = RunRegistry()
+state = run_registry.get_default()

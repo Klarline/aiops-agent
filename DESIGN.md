@@ -159,7 +159,7 @@ The diagnoser uses ordered pattern matching on metric signatures rather than a t
 4. **Known fault taxonomy**: The diagnoser only classifies the 8 known fault types. A novel fault type would be classified as "unknown" and escalated.
 5. **No persistent state**: The agent resets between episodes. In production, incident memory would persist across restarts and inform future decisions.
 6. **LLM availability**: The ReAct agent requires an OpenAI API key. Without it, the system falls back to the rule-based pipeline with no reasoning traces.
-7. **No authentication**: The API has no auth layer — appropriate for a prototype but not for production deployment.
+7. **Optional API authentication**: When `AIOPS_API_KEY` is set, mutating endpoints require `X-API-Key` or `Authorization: Bearer`. When unset, all requests are allowed (local/demo). Sessionized runs (`POST /agent/runs`) provide per-run isolation and incident IDs for traceability.
 
 ---
 

@@ -135,11 +135,22 @@ python -m uvicorn api.main:app --reload # Start API
 
 ## Agent Guardrail Configuration
 
-Two optional environment variables control autonomous remediation limits:
+Optional environment variables:
 
 - `AIOPS_MAX_ACTIONS` (default: `3`): maximum autonomous actions per episode
 - `AIOPS_BUDGET_EXHAUSTED_ACTION` (default: `continue_monitoring`): behavior after budget is exhausted while anomaly persists
   - `continue_monitoring`: stop autonomous actions and keep monitoring
   - `alert_human`: immediately escalate to a human operator
+- `AIOPS_API_KEY` (optional): when set, mutating endpoints require `X-API-Key` or `Authorization: Bearer`. When unset, all requests are allowed (local/demo).
 
 These settings are useful for tuning safety posture during evaluation and demos.
+
+## API: Sessionized Runs
+
+For API-driven clients, use sessionized endpoints for concurrent independent runs:
+
+- `POST /agent/runs` — create run, returns `run_id` and `incident_id`
+- `POST /agent/runs/{run_id}/step` — advance run
+- `GET /agent/runs/{run_id}/status`, `/log`, `/shap`, `/evaluate`, etc.
+
+Legacy endpoints (`POST /agent/scenarios/start`, `POST /agent/step`) use a default session and remain backward compatible for the dashboard.
