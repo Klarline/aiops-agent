@@ -85,6 +85,16 @@ python scripts/run_benchmark.py --fast
 
 Shows per-scenario scores in AIOpsLab leaderboard format.
 
+## Incident Reports
+
+Generate structured post-incident markdown (for managers/compliance):
+
+```bash
+python scripts/run_benchmark.py --incident-reports --fast
+```
+
+Reports saved to `evaluation/results/incidents/`. Example: [docs/example_incident_report.md](docs/example_incident_report.md).
+
 ## Go Deeper
 
 - [EVALUATION.md](EVALUATION.md) — per-scenario analysis, robustness evidence

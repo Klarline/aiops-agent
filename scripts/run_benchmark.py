@@ -48,6 +48,11 @@ def main():
         action="store_true",
         help="Run across seeds 42-46 and report mean ± std (robustness check)",
     )
+    parser.add_argument(
+        "--incident-reports",
+        action="store_true",
+        help="Generate structured incident reports per episode (saved to evaluation/results/incidents/)",
+    )
     args = parser.parse_args()
 
     if args.fast:
@@ -102,12 +107,18 @@ def _run_multi_seed(args):
 
 
 def _run_single(args):
+    incident_dir = None
+    if args.incident_reports:
+        incident_dir = "evaluation/results/incidents"
+        print(f"Incident reports will be saved to {incident_dir}/")
+
     print(f"Running benchmark (seed={args.seed}, episodes/scenario={args.episodes})...")
     results = run_benchmark(
         seed=args.seed,
         episodes_per_scenario=args.episodes,
         train_profile=args.train_profile,
         eval_profile=args.eval_profile,
+        incident_report_dir=incident_dir,
     )
 
     _print_results(results)
@@ -117,6 +128,8 @@ def _run_single(args):
 
     print(f"\nResults saved to: {report['results_path']}")
     print(f"Expected results saved to: {expected_path}")
+    if args.incident_reports and incident_dir:
+        print(f"Incident reports saved to: {incident_dir}/")
 
 
 def _run_leaderboard(args):

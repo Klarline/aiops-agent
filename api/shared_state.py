@@ -8,6 +8,7 @@ Phase C: Sessionized run state with per-run isolation and incident IDs.
 
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any
 
@@ -41,6 +42,7 @@ class RunSession:
         self.anomaly_timeline: list[dict[str, Any]] = []
         self.detection_step: int = -1
         self.feature_names: list[str] = get_feature_names()
+        self._started_at: float = 0.0
 
     def ensure_ensemble(self) -> EnsembleDetector:
         if self.ensemble is None:
@@ -74,6 +76,7 @@ class RunSession:
         self.metrics_history = []
         self.anomaly_timeline = []
         self.detection_step = -1
+        self._started_at = time.monotonic()
         return ctx
 
     def step_once(self) -> dict[str, Any] | None:

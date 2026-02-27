@@ -11,6 +11,7 @@ venv/
 
 # Generated evaluation artifact
 evaluation/results/leaderboard_results.json
+evaluation/results/incidents/
 # Keep benchmark_results.json tracked for reproducibility snapshots.
 # If this becomes too noisy, switch to ignoring it and only keep expected_results.json.
 

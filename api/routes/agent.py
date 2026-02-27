@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -194,6 +195,29 @@ async def get_agent_status():
         "resolved": orch.env.is_resolved() if orch else False,
         "detection_step": state.detection_step,
         "reasoning_log_length": len(agent.reasoning_log) if agent else 0,
+    }
+
+
+@router.get("/health")
+async def get_agent_health():
+    """Agent self-observability: actions taken, mode, uptime."""
+    agent = state.agent
+    actions_taken = getattr(agent, "_action_count", 0) if agent else 0
+    mode = "rule-based"
+    if agent and getattr(agent, "_tool_registry", None) is not None:
+        llm = getattr(agent, "_llm", None)
+        if llm and getattr(llm, "is_available", False):
+            mode = "llm"
+    if agent and getattr(agent, "rl_policy", None) is not None:
+        if getattr(agent.rl_policy, "converged", False):
+            mode = "rl"
+    uptime_seconds = time.monotonic() - getattr(state, "_started_at", 0) if getattr(state, "_started_at", 0) > 0 else 0
+    return {
+        "actions_taken": actions_taken,
+        "mode": mode,
+        "uptime_seconds": round(uptime_seconds, 1),
+        "running": state.running,
+        "detection_step": state.detection_step,
     }
 
 

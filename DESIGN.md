@@ -137,6 +137,8 @@ Action B — Scale out:
   EU = 0.24 × 80 - 50 = -30.8
 ```
 
+**Cost model (optional):** The utility scorer accepts a cost model with `action_cost` and `downtime_seconds` per action. Downtime is penalized (0.1 utility per second). Example: `restart_service` has 15s downtime → +1.5 cost; `alert_human` has 300s (human response time) → +30 cost. This elevates from "anomaly detection" to "risk-based operational intelligence."
+
 ---
 
 ## Security Threat Model
@@ -172,6 +174,8 @@ Three guardrails prevent the agent from causing more damage than it fixes:
 3. **Risk-adjusted utility**: Every action is scored by expected utility accounting for success probability, severity, and downstream impact. Low-utility actions are blocked even if the diagnosis is confident. See [Expected Utility Calculation](#expected-utility-calculation).
 
 **Design principle**: The system should never make an incident worse. When in doubt, alert a human. This matches production operations philosophy where a missed auto-remediation is recoverable, but a wrong auto-remediation during a cascading failure is not.
+
+**Self-observability**: The agent exposes `GET /agent/health` returning actions taken, current mode (LLM/rule-based/RL), and uptime — the agent monitors itself.
 
 ---
 

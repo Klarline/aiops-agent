@@ -7,6 +7,7 @@ Supports running multiple agents for leaderboard comparison.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
@@ -45,6 +46,7 @@ def _run_agent_scenarios(
     episodes_per_scenario: int,
     max_steps: int,
     eval_profile: MetricsProfile | None = None,
+    incident_report_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Run all scenarios for a single agent type."""
     scenarios = list_scenarios()
@@ -66,6 +68,13 @@ def _run_agent_scenarios(
             action_step = -1
             if orch.history:
                 action_step = orch.history[0].get("step", -1)
+
+            if incident_report_dir and result.detection:
+                from explanation.incident_report import generate_incident_report, save_incident_report
+
+                incident_id = f"INC-{scenario_id[:4]}-{ep:04d}"
+                report = generate_incident_report(orch, scenario_id, ep, incident_id)
+                save_incident_report(report, incident_report_dir, incident_id)
 
             record = {
                 "scenario": scenario_id,
@@ -122,6 +131,7 @@ def run_benchmark(
     max_steps: int = 200,
     train_profile: str | MetricsProfile | None = None,
     eval_profile: str | MetricsProfile | None = None,
+    incident_report_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Run full benchmark with the ML agent.
 
@@ -140,6 +150,7 @@ def run_benchmark(
         episodes_per_scenario=episodes_per_scenario,
         max_steps=max_steps,
         eval_profile=ep,
+        incident_report_dir=incident_report_dir,
     )
     result["seed"] = seed
     result["episodes_per_scenario"] = episodes_per_scenario
