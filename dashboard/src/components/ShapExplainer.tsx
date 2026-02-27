@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 interface ShapFeature {
   name: string;
   value: number;
+  human_label?: string;
 }
 
 interface ShapData {
@@ -27,7 +28,7 @@ export default function ShapExplainer({ data }: ShapExplainerProps) {
 
   const sorted = [...data.features].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
   const chartData = sorted.slice(0, 8).map(f => ({
-    name: f.name
+    name: f.human_label ?? f.name
       .replace(/_/g, ' ')
       .replace('percent', '%')
       .replace('transactions per minute', 'TPM'),

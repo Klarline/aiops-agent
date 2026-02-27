@@ -84,7 +84,9 @@ def _severity_label(severity: float) -> str:
 def _shap_context(shap_top: list[tuple[str, float]] | None) -> str:
     if not shap_top:
         return ""
-    parts = [f"{name} ({val:+.2f})" for name, val in shap_top[:3]]
+    from explanation.shap_labels import humanize_feature_name
+
+    parts = [f"{humanize_feature_name(name, None)} ({val:+.2f})" for name, val in shap_top[:3]]
     return "Key drivers: " + ", ".join(parts) + "."
 
 

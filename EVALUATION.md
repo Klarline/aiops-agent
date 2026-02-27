@@ -48,9 +48,43 @@ Feature attribution for three representative incidents, showing which metrics dr
 
 The SHAP waterfall plots show the Isolation Forest's decision decomposed into per-feature contributions. Red bars push toward anomaly, blue toward normal. For memory leak, `memory_percent` features dominate; for brute force, `error_rate` and `request_rate` features dominate — confirming the model learned meaningful patterns, not noise.
 
+**Translated example**: Instead of raw `error_rate_zscore +4.2 contributed +0.38`, the dashboard shows **Login failure rate (+4.2σ from normal)** — immediately actionable for operators. Similarly, `tpm_mean` becomes **Transactions per minute (3/min, normal ~850)** when TPM collapses during a transaction stall.
+
 ## Mean Time to Remediation (MTTR)
 
 ![MTTR by Scenario](evaluation/results/plots/mttr_by_scenario.png)
+
+## Robustness (Multi-Seed)
+
+Run `python scripts/run_benchmark.py --multi-seed --episodes 13` to reproduce.
+
+| Metric | Mean | Std |
+|--------|------|-----|
+| Detection | 100% | 0% |
+| Localization | 94% | 1% |
+| Diagnosis | 92% | 2% |
+| Mitigation | 100% | 0% |
+| **Average** | **96%** | **1%** |
+
+Performance is stable across seeds 42–46. Localization and diagnosis show modest variance (±1–2%); detection and mitigation are deterministic at 100%.
+
+## Robustness Under Distribution Shift
+
+Train on baseline profile, evaluate on `moderate_shift` (8% noise, randomized propagation):
+
+```bash
+python scripts/run_benchmark.py --train-profile baseline --eval-profile moderate_shift --episodes 13
+```
+
+| Metric | In-Distribution | Moderate Shift |
+|--------|-----------------|----------------|
+| Detection | 100% | 100% |
+| Localization | 97% | 67% |
+| Diagnosis | 95% | 51% |
+| Mitigation | 100% | 100% |
+| **Average** | **98%** | **80%** |
+
+Detection and mitigation hold; localization and diagnosis degrade when the evaluation distribution shifts (noise, propagation delays). This is expected — the agent was trained on baseline conditions. Production deployment would benefit from training on diverse profiles or online calibration.
 
 ## Honest Analysis of Weaknesses
 

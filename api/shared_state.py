@@ -17,6 +17,7 @@ import pandas as pd
 from orchestrator.orchestrator import Orchestrator
 from agent.agent import AIOpsAgent
 from features.feature_extractor import extract_features_batch, extract_features, get_feature_names
+from explanation.shap_labels import humanize_feature_name
 from detection.ensemble import EnsembleDetector
 from detection.explainer import ShapExplainer
 from simulator.service_topology import build_topology
@@ -173,8 +174,15 @@ class RunSession:
         features = extract_features(df, window_size=6)
         explanation = self.explainer.explain(features, top_k=10)
 
+        fnames = get_feature_names()
+        raw_values = {fnames[i]: float(features[i]) for i in range(min(len(fnames), len(features)))}
+
         shap_features = [
-            {"name": name, "value": round(val, 4)}
+            {
+                "name": name,
+                "value": round(val, 4),
+                "human_label": humanize_feature_name(name, raw_values.get(name)),
+            }
             for name, val in explanation.top_features
         ]
         all_values = {k: round(v, 4) for k, v in explanation.all_values.items()}

@@ -1,18 +1,18 @@
 {
   "aggregate": {
     "detection": 1.0,
-    "localization": 0.9423076923076923,
-    "diagnosis": 0.9423076923076923,
+    "localization": 0.6730769230769231,
+    "diagnosis": 0.5096153846153846,
     "mitigation": 1.0,
-    "average": 0.9711538461538461
+    "average": 0.7956730769230769
   },
   "per_scenario": {
     "memory_leak_auth": {
       "detection": 1.0,
-      "localization": 0.9230769230769231,
-      "diagnosis": 0.9230769230769231,
+      "localization": 0.3076923076923077,
+      "diagnosis": 0.0,
       "mitigation": 1.0,
-      "average": 0.9615384615384616
+      "average": 0.5769230769230769
     },
     "cpu_saturation_order": {
       "detection": 1.0,
@@ -30,10 +30,10 @@
     },
     "transaction_stall_order": {
       "detection": 1.0,
-      "localization": 1.0,
-      "diagnosis": 1.0,
+      "localization": 0.5384615384615384,
+      "diagnosis": 0.07692307692307693,
       "mitigation": 1.0,
-      "average": 1.0
+      "average": 0.6538461538461537
     },
     "cascading_failure_gateway": {
       "detection": 1.0,
@@ -44,17 +44,17 @@
     },
     "deployment_regression_order": {
       "detection": 1.0,
-      "localization": 1.0,
-      "diagnosis": 1.0,
+      "localization": 0.46153846153846156,
+      "diagnosis": 0.0,
       "mitigation": 1.0,
-      "average": 1.0
+      "average": 0.6153846153846154
     },
     "anomalous_access_userdb": {
       "detection": 1.0,
-      "localization": 0.6153846153846154,
-      "diagnosis": 0.6153846153846154,
+      "localization": 0.07692307692307693,
+      "diagnosis": 0.0,
       "mitigation": 1.0,
-      "average": 0.8076923076923077
+      "average": 0.5192307692307692
     },
     "ddos_gateway": {
       "detection": 1.0,
@@ -71,10 +71,10 @@
       "seed": 42,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 33
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
@@ -82,54 +82,54 @@
       "seed": 43,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 33
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 2,
       "seed": 44,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 3,
       "seed": 45,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 4,
       "seed": 46,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 5,
       "seed": 47,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
@@ -137,10 +137,10 @@
       "seed": 48,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
@@ -151,18 +151,18 @@
       "diagnosis": false,
       "mitigation": true,
       "score": 0.5,
-      "action_step": 105
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 8,
       "seed": 50,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
@@ -170,43 +170,43 @@
       "seed": 51,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 137
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 10,
       "seed": 52,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 11,
       "seed": 53,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "memory_leak_auth",
       "episode": 12,
       "seed": 54,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "cpu_saturation_order",
@@ -499,33 +499,33 @@
       "episode": 0,
       "seed": 42,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
       "episode": 1,
       "seed": 43,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
       "episode": 2,
       "seed": 44,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -533,10 +533,10 @@
       "seed": 45,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -544,10 +544,10 @@
       "seed": 46,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -555,10 +555,10 @@
       "seed": 47,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -569,40 +569,40 @@
       "diagnosis": true,
       "mitigation": true,
       "score": 1.0,
-      "action_step": 30
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
       "episode": 7,
       "seed": 49,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 29
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
       "episode": 8,
       "seed": 50,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
       "episode": 9,
       "seed": 51,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 28
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -610,10 +610,10 @@
       "seed": 52,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 27
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -621,10 +621,10 @@
       "seed": 53,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "transaction_stall_order",
@@ -632,10 +632,10 @@
       "seed": 54,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 30
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "cascading_failure_gateway",
@@ -785,33 +785,33 @@
       "episode": 0,
       "seed": 42,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 33
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
       "episode": 1,
       "seed": 43,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 33
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
       "episode": 2,
       "seed": 44,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
@@ -819,10 +819,10 @@
       "seed": 45,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
@@ -830,10 +830,10 @@
       "seed": 46,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
@@ -841,54 +841,54 @@
       "seed": 47,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
       "episode": 6,
       "seed": 48,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
       "episode": 7,
       "seed": 49,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
       "episode": 8,
       "seed": 50,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
       "episode": 9,
       "seed": 51,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
@@ -896,10 +896,10 @@
       "seed": 52,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 35
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
@@ -907,10 +907,10 @@
       "seed": 53,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "deployment_regression_order",
@@ -918,32 +918,32 @@
       "seed": 54,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 34
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 0,
       "seed": 42,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 43
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 1,
       "seed": 43,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 45
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
@@ -954,7 +954,7 @@
       "diagnosis": false,
       "mitigation": true,
       "score": 0.5,
-      "action_step": 38
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
@@ -965,7 +965,7 @@
       "diagnosis": false,
       "mitigation": true,
       "score": 0.5,
-      "action_step": 38
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
@@ -976,40 +976,40 @@
       "diagnosis": false,
       "mitigation": true,
       "score": 0.5,
-      "action_step": 34
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 5,
       "seed": 47,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 45
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 6,
       "seed": 48,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 44
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 7,
       "seed": 49,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 45
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
@@ -1017,32 +1017,32 @@
       "seed": 50,
       "detection": true,
       "localization": true,
-      "diagnosis": true,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 45
+      "score": 0.75,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 9,
       "seed": 51,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 44
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
       "episode": 10,
       "seed": 52,
       "detection": true,
-      "localization": true,
-      "diagnosis": true,
+      "localization": false,
+      "diagnosis": false,
       "mitigation": true,
-      "score": 1.0,
-      "action_step": 41
+      "score": 0.5,
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
@@ -1053,7 +1053,7 @@
       "diagnosis": false,
       "mitigation": true,
       "score": 0.5,
-      "action_step": 34
+      "action_step": 25
     },
     {
       "scenario": "anomalous_access_userdb",
@@ -1064,7 +1064,7 @@
       "diagnosis": false,
       "mitigation": true,
       "score": 0.5,
-      "action_step": 40
+      "action_step": 25
     },
     {
       "scenario": "ddos_gateway",
@@ -1211,16 +1211,18 @@
     }
   ],
   "mttr_by_scenario": {
-    "memory_leak_auth": 476.15384615384613,
+    "memory_leak_auth": 250.0,
     "cpu_saturation_order": 250.0,
     "brute_force_auth": 250.0,
-    "transaction_stall_order": 295.3846153846154,
+    "transaction_stall_order": 250.0,
     "cascading_failure_gateway": 250.0,
-    "deployment_regression_order": 343.84615384615387,
-    "anomalous_access_userdb": 412.3076923076923,
+    "deployment_regression_order": 250.0,
+    "anomalous_access_userdb": 250.0,
     "ddos_gateway": 250.0
   },
   "seed": 42,
   "episodes_per_scenario": 13,
-  "total_episodes": 104
+  "total_episodes": 104,
+  "train_profile": "baseline",
+  "eval_profile": "moderate_shift"
 }

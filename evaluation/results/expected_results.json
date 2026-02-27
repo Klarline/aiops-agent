@@ -2,18 +2,18 @@
   "seed": 42,
   "aggregate": {
     "detection": 1.0,
-    "localization": 0.9423076923076923,
-    "diagnosis": 0.9423076923076923,
+    "localization": 0.6730769230769231,
+    "diagnosis": 0.5096153846153846,
     "mitigation": 1.0,
-    "average": 0.9711538461538461
+    "average": 0.7956730769230769
   },
   "per_scenario": {
     "memory_leak_auth": {
       "detection": 1.0,
-      "localization": 0.9230769230769231,
-      "diagnosis": 0.9230769230769231,
+      "localization": 0.3076923076923077,
+      "diagnosis": 0.0,
       "mitigation": 1.0,
-      "average": 0.9615384615384616
+      "average": 0.5769230769230769
     },
     "cpu_saturation_order": {
       "detection": 1.0,
@@ -31,10 +31,10 @@
     },
     "transaction_stall_order": {
       "detection": 1.0,
-      "localization": 1.0,
-      "diagnosis": 1.0,
+      "localization": 0.5384615384615384,
+      "diagnosis": 0.07692307692307693,
       "mitigation": 1.0,
-      "average": 1.0
+      "average": 0.6538461538461537
     },
     "cascading_failure_gateway": {
       "detection": 1.0,
@@ -45,17 +45,17 @@
     },
     "deployment_regression_order": {
       "detection": 1.0,
-      "localization": 1.0,
-      "diagnosis": 1.0,
+      "localization": 0.46153846153846156,
+      "diagnosis": 0.0,
       "mitigation": 1.0,
-      "average": 1.0
+      "average": 0.6153846153846154
     },
     "anomalous_access_userdb": {
       "detection": 1.0,
-      "localization": 0.6153846153846154,
-      "diagnosis": 0.6153846153846154,
+      "localization": 0.07692307692307693,
+      "diagnosis": 0.0,
       "mitigation": 1.0,
-      "average": 0.8076923076923077
+      "average": 0.5192307692307692
     },
     "ddos_gateway": {
       "detection": 1.0,

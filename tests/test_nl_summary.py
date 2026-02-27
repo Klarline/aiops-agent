@@ -42,7 +42,8 @@ class TestNLSummary:
             shap_top=shap_top,
             context={"cpu": 96, "zscore": 3.2},
         )
-        assert "cpu_percent_zscore" in summary
+        assert "CPU usage" in summary
+        assert "Key drivers" in summary
 
     def test_unknown_fault_still_produces_summary(self):
         summary = generate_summary("weird_fault", "some-service", "alert_human")
