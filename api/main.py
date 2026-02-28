@@ -39,4 +39,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    """App-level health. Includes agent self-observability when a scenario has run."""
+    from api.routes.agent import get_agent_health
+    payload = await get_agent_health()
+    return payload

@@ -43,6 +43,7 @@ class RunSession:
         self.detection_step: int = -1
         self.feature_names: list[str] = get_feature_names()
         self._started_at: float = 0.0
+        self._last_decision_latency_ms: float | None = None
 
     def ensure_ensemble(self) -> EnsembleDetector:
         if self.ensemble is None:
@@ -91,7 +92,9 @@ class RunSession:
             self.running = False
             return None
 
+        t0 = time.perf_counter()
         action = agent.get_action(obs)
+        self._last_decision_latency_ms = (time.perf_counter() - t0) * 1000
 
         snapshot = obs.metrics
         self.metrics_history.append(snapshot)

@@ -71,7 +71,15 @@ class EnsembleDetector:
         stat_norm = max((stat_raw - self._stat_median) / self._stat_max, 0.0)
 
         combined = self.iso_weight * iso_norm + self.stat_weight * stat_norm
-        uncertainty = abs(iso_norm - stat_norm)
+
+        # Cap scores before computing uncertainty so two detectors that both
+        # say "very anomalous" (e.g. 3.0 vs 60.0) don't produce fake
+        # disagreement.  Uncertainty reflects directional disagreement
+        # (anomalous vs normal), not magnitude differences.  Scores above
+        # 1.0 mean "above p99 of training data" — i.e. definitely anomalous.
+        iso_capped = min(iso_norm, 1.0)
+        stat_capped = min(stat_norm, 1.0)
+        uncertainty = abs(iso_capped - stat_capped)
 
         return AnomalyResult(
             is_anomalous=combined > self.threshold,

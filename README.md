@@ -9,7 +9,7 @@ A security-aware autonomous operations agent for protecting and stabilizing busi
 
 ![Transaction stall detection](docs/screenshot_transaction_stall.png)
 
-**68-point gap** vs static threshold monitoring. ML Ensemble Agent: **98%** average across Detection, Localization, Diagnosis, Mitigation. See [EVALUATION.md](EVALUATION.md).
+**67-point gap** vs static threshold monitoring. ML Ensemble Agent: **97%** average across Detection, Localization, Diagnosis, Mitigation. See [EVALUATION.md](EVALUATION.md).
 
 ## What It Does
 
@@ -95,12 +95,12 @@ See [DESIGN.md](DESIGN.md) for rationale.
 
 ```
 AGENT                 DETECTION  LOCALIZATION  DIAGNOSIS  MITIGATION  AVERAGE
-ML Ensemble Agent         100%          97%       95%       100%   98.1%
-Static Threshold           43%          38%       12%        25%   29.6%
+ML Ensemble Agent         100%          94%       94%       100%   97.1%
+Static Threshold           44%          38%       12%        25%   29.8%
 Random Agent               62%          12%       12%        62%   37.5%
 ```
 
-The **68-point gap** between the ML agent and static threshold proves the architecture. Run `python scripts/run_benchmark.py --leaderboard` to reproduce. See [EVALUATION.md](EVALUATION.md) for per-scenario analysis.
+The **67-point gap** between the ML agent and static threshold proves the architecture. Run `python scripts/run_benchmark.py --leaderboard` to reproduce. See [EVALUATION.md](EVALUATION.md) for per-scenario analysis.
 
 ## Security Features
 

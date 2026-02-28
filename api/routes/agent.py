@@ -200,7 +200,7 @@ async def get_agent_status():
 
 @router.get("/health")
 async def get_agent_health():
-    """Agent self-observability: actions taken, mode, uptime."""
+    """Agent self-observability: status, decision latency, actions taken, mode, uptime."""
     agent = state.agent
     actions_taken = getattr(agent, "_action_count", 0) if agent else 0
     mode = "rule-based"
@@ -212,12 +212,15 @@ async def get_agent_health():
         if getattr(agent.rl_policy, "converged", False):
             mode = "rl"
     uptime_seconds = time.monotonic() - getattr(state, "_started_at", 0) if getattr(state, "_started_at", 0) > 0 else 0
+    decision_latency_ms = getattr(state, "_last_decision_latency_ms", None)
     return {
+        "status": "healthy",
         "actions_taken": actions_taken,
         "mode": mode,
         "uptime_seconds": round(uptime_seconds, 1),
         "running": state.running,
         "detection_step": state.detection_step,
+        "decision_latency_ms": round(decision_latency_ms, 2) if decision_latency_ms is not None else None,
     }
 
 

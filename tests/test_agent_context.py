@@ -103,9 +103,11 @@ class TestBuildContextDynamic:
 
         history = agent._metrics_history.get("order-service", [])
         if len(history) >= agent._warmup_steps:
-            warmup = history[:agent._warmup_steps]
-            expected_baseline = np.mean([h["transactions_per_minute"] for h in warmup])
-            assert abs(ctx["tpm_baseline"] - expected_baseline) < 1.0
+            # tpm_baseline uses max(dynamic, topology) so the NL summary
+            # always shows the service's true long-term baseline, not a
+            # diurnal trough value.
+            topo_baseline = 850.0  # from service_topology.py
+            assert ctx["tpm_baseline"] == topo_baseline
 
     def test_dynamic_zscore_reflects_anomaly(self):
         """peak zscore should be > 0 when fault is active."""

@@ -25,7 +25,7 @@ class UncertaintyGate:
 
     def __init__(
         self,
-        uncertainty_threshold: float = 0.4,
+        uncertainty_threshold: float = 0.85,
         risk_threshold: float = 0.5,
     ):
         self.uncertainty_threshold = uncertainty_threshold

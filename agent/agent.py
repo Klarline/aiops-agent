@@ -434,9 +434,9 @@ class AIOpsAgent:
             per_service_scores.get(root_service, max_score),
         )
 
-        # --- Uncertainty check ---
+        # --- Uncertainty check (skip for high-confidence security faults) ---
         root_result = per_service_results.get(root_service)
-        if root_result:
+        if root_result and not (diagnosis.is_security and diagnosis.confidence >= 0.7):
             blast = get_blast_radius(obs.topology, root_service)
             gate = self.uncertainty_gate.check(root_result, diagnosis.severity, blast)
             if gate.should_escalate:
@@ -547,7 +547,10 @@ class AIOpsAgent:
         request_rate = metrics.get("request_rate", 0)
         latency_p99 = metrics.get("latency_p99_ms", 0)
 
-        tpm_baseline = baseline.get("transactions_per_minute", 850)
+        tpm_baseline = max(
+            baseline.get("transactions_per_minute", 850),
+            topo_baseline.get("transactions_per_minute", 850),
+        )
         error_baseline = baseline.get("error_rate", 0.01)
         request_baseline = baseline.get("request_rate", 200)
         latency_baseline = baseline.get("latency_p99_ms", 200)

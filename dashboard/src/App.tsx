@@ -21,7 +21,7 @@ interface StepData {
 
 interface ShapData {
   service: string;
-  features: { name: string; value: number }[];
+  features: { name: string; value: number; human_label?: string }[];
   all_values?: Record<string, number>;
 }
 

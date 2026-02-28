@@ -18,7 +18,27 @@ class TestAPI:
     def test_health(self):
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json()["status"] == "healthy"
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "actions_taken" in data
+        assert "mode" in data
+        assert "uptime_seconds" in data
+        assert "running" in data
+        assert "detection_step" in data
+        assert "decision_latency_ms" in data
+
+    def test_agent_health(self):
+        """Agent self-observability endpoint returns full payload."""
+        response = client.get("/agent/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "actions_taken" in data
+        assert "mode" in data
+        assert "uptime_seconds" in data
+        assert "running" in data
+        assert "detection_step" in data
+        assert "decision_latency_ms" in data
 
     def test_list_scenarios(self):
         response = client.get("/agent/scenarios")

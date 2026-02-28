@@ -10,8 +10,6 @@ When no cost model is provided, uses default action costs.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-
 ACTION_BENEFITS = {
     "restart_service": 100.0,
     "scale_out": 80.0,

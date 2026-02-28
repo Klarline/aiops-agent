@@ -12,13 +12,16 @@ python scripts/run_benchmark.py --leaderboard --seed 42 --episodes 13
 -----------------------------------------------------------------------------
 AGENT                 DETECTION  LOCALIZATION  DIAGNOSIS  MITIGATION  AVERAGE
 -----------------------------------------------------------------------------
-ML Ensemble Agent         100%          97%       95%       100%   98.1%
-Static Threshold           43%          38%       12%        25%   29.6%
+ML Ensemble Agent         100%          94%       94%       100%   97.1%
+Rule Only                  75%          63%       63%        75%   69.2%
+ML + Rule                 100%          94%       94%       100%   97.1%
+Fallback Only              62%           0%        0%        62%   31.2%
+Static Threshold           44%          38%       12%        25%   29.8%
 Random Agent               62%          12%       12%        62%   37.5%
 -----------------------------------------------------------------------------
 ```
 
-The **68-point gap** between the ML agent and static thresholds is the quantitative case for this architecture. A simple "CPU > 80% → restart" policy catches CPU saturation and parts of DDoS but fails catastrophically on transaction stalls (no metric exceeds any threshold), cascading failures (restarts the wrong service), and anomalous access (multivariate signal below any single threshold).
+The **67-point gap** between the ML agent and static thresholds is the quantitative case for this architecture. A simple "CPU > 80% → restart" policy catches CPU saturation and parts of DDoS but fails catastrophically on transaction stalls (no metric exceeds any threshold), cascading failures (restarts the wrong service), and anomalous access (multivariate signal below any single threshold).
 
 ![Leaderboard Comparison](evaluation/results/plots/leaderboard_comparison.png)
 ![Per-Scenario Comparison](evaluation/results/plots/per_scenario_comparison.png)
@@ -32,8 +35,8 @@ The **68-point gap** between the ML agent and static thresholds is the quantitat
 | brute_force_auth | 100% | 100% | 100% | 100% |
 | transaction_stall_order | 100% | 100% | 100% | 100% |
 | cascading_failure_gateway | 100% | 100% | 100% | 100% |
-| deployment_regression_order | 100% | 100% | 92% | 100% |
-| anomalous_access_userdb | 100% | 85% | 77% | 100% |
+| deployment_regression_order | 100% | 100% | 100% | 100% |
+| anomalous_access_userdb | 100% | 62% | 62% | 100% |
 | ddos_gateway | 100% | 100% | 100% | 100% |
 
 ![Per-Scenario Heatmap](evaluation/results/plots/confusion_matrix.png)
@@ -79,20 +82,20 @@ python scripts/run_benchmark.py --train-profile baseline --eval-profile moderate
 | Metric | In-Distribution | Moderate Shift |
 |--------|-----------------|----------------|
 | Detection | 100% | 100% |
-| Localization | 97% | 67% |
-| Diagnosis | 95% | 51% |
+| Localization | 94% | 67% |
+| Diagnosis | 94% | 51% |
 | Mitigation | 100% | 100% |
-| **Average** | **98%** | **80%** |
+| **Average** | **97%** | **80%** |
 
 Detection and mitigation hold; localization and diagnosis degrade when the evaluation distribution shifts (noise, propagation delays). This is expected — the agent was trained on baseline conditions. Production deployment would benefit from training on diverse profiles or online calibration.
 
 ## Honest Analysis of Weaknesses
 
-**Anomalous access (Diag 77%)**: This is the hardest scenario by design — the signal is subtle (error_rate +3%, latency_p99 +40%) and overlaps with normal noise. In ~23% of episodes, the diagnosis misclassifies as "unknown" or a competing pattern matches first. *Next: per-service adaptive thresholds calibrated to historical baselines to reduce false positives.*
+**Anomalous access (Loc/Diag 62%)**: This is the hardest scenario by design — the signal is subtle (error_rate +3%, latency_p99 +40%) and overlaps with normal noise. In ~38% of episodes, the localizer picks the wrong service or the diagnosis misclassifies as "unknown" because the pattern overlaps with other fault signatures. *Next: per-service adaptive thresholds calibrated to historical baselines to reduce false positives.*
 
 **Memory leak localization (Loc 92%)**: In 1 of 13 episodes, the localizer picks the wrong service because the memory increase in the first few minutes is smaller than normal cross-service metric variance. Memory leaks are inherently harder to localize early because the signal starts weak and grows over time. *Next: longer observation window or trend-weighted localization.*
 
-**Deployment regression diagnosis (Diag 92%)**: In 1 of 13 episodes, the deployment regression's latency shift is mild enough that the pattern check's threshold isn't met. *Next: adaptive thresholds calibrated to each service's historical variance.*
+**Deployment regression diagnosis**: Now at 100% after uncertainty gate calibration. Previously, the gate intercepted high-confidence diagnoses and escalated to human before the rule policy could act. *Lesson: safety gates need calibration proportional to their score scales.*
 
 **Transaction stall mitigation**: The agent correctly detects and localizes but can only alert — it cannot auto-fix business logic faults (deadlocks, broken consumers). *This is correct behavior*: the value is fast detection and escalation; autonomous remediation of unknown business state would be unsafe.
 

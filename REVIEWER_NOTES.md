@@ -102,7 +102,15 @@ Reports saved to `evaluation/results/incidents/`. Example: [docs/example_inciden
 
 ## Video Demo
 
-See `demo_video.mp4`. Timestamps: 0:30 Architecture · 2:00 Transaction stall · 3:30 Security · 5:00 SHAP · 6:30 Results · 8:00 Engineering practices
+See `demo_video.mp4`:
+- `0:02` — Hook: the silent failure problem
+- `0:30` — Transaction stall demo
+- `3:04` — Security demo
+- `3:40` — Architecture + AIOpsLab
+- `4:58` — Safety guardrails
+- `5:36` — Evaluation results + honest limitations
+- `6:56` — Engineering practices
+- `7:46` — Learnings + close
 
 ## Quick Setup
 
