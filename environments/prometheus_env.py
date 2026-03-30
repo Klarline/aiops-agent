@@ -161,7 +161,7 @@ class PrometheusEnvironment(BaseEnvironment):
                 "event": "ip_blocked",
                 "ip": ip,
                 "service": target,
-                "reason": f"Automated block via live agent",
+                "reason": "Automated block via live agent",
             })
 
         logger.info("action=%s target=%s success=%s msg=%s",

@@ -29,7 +29,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from detection.ensemble import EnsembleDetector
-from features.feature_extractor import extract_features_batch, get_feature_names
+from features.feature_extractor import extract_features_batch
 from simulator.service_topology import build_topology
 from simulator.metrics_generator import generate_metrics
 from knowledge_base.incident_store import IncidentStore
