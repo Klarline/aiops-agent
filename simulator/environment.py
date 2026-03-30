@@ -6,39 +6,22 @@ a single interface used by the orchestrator.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 import networkx as nx
 
+from environments.base import BaseEnvironment
+from environments.types import ActionResult, Observation
 from simulator.service_topology import build_topology
 from simulator.metrics_generator import generate_metrics, MetricsProfile
 from simulator.fault_injector import FaultScenario, inject_fault, inject_compound_fault
 
-
-@dataclass
-class Observation:
-    """Single time-step observation returned to the agent."""
-
-    timestamp: Any
-    metrics: dict[str, dict[str, float]]
-    topology: nx.DiGraph
-    step_index: int
+# Re-export for backward compatibility with existing imports
+__all__ = ["SimulatedEnvironment", "Observation", "ActionResult"]
 
 
-@dataclass
-class ActionResult:
-    """Result of executing a remediation action."""
-
-    success: bool
-    action: str
-    target: str
-    message: str
-    details: dict[str, Any] = field(default_factory=dict)
-
-
-class SimulatedEnvironment:
+class SimulatedEnvironment(BaseEnvironment):
     """Unified environment that generates metrics, injects faults,
     and handles remediation actions."""
 

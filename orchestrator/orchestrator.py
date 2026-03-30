@@ -6,7 +6,9 @@ problem setup, action execution, and 4-task evaluation.
 
 from __future__ import annotations
 
-from simulator.environment import SimulatedEnvironment, Observation
+from environments.base import BaseEnvironment
+from environments.types import Observation
+from simulator.environment import SimulatedEnvironment
 from orchestrator.scenario_registry import get_scenario
 from orchestrator.problem_context import (
     ProblemContext,
@@ -18,13 +20,33 @@ from orchestrator.problem_context import (
 class Orchestrator:
     """Lightweight AIOpsLab-inspired orchestrator."""
 
-    def __init__(self, seed: int = 42, eval_profile=None):
-        self.env = SimulatedEnvironment(seed=seed, profile=eval_profile)
+    def __init__(
+        self,
+        seed: int = 42,
+        eval_profile=None,
+        env: BaseEnvironment | None = None,
+    ):
+        self.env: BaseEnvironment = env if env is not None else SimulatedEnvironment(seed=seed, profile=eval_profile)
         self.history: list[dict] = []
         self._agent_detected: bool = False
         self._agent_localized: str = ""
         self._agent_diagnosed: str = ""
         self._agent_mitigated: bool = False
+
+    def init_live(self) -> ProblemContext:
+        """Initialize for live monitoring — no scenario injection, no ground truth."""
+        self.history = []
+        self._agent_detected = False
+        self._agent_localized = ""
+        self._agent_diagnosed = ""
+        self._agent_mitigated = False
+
+        services = list(self.env.get_topology().nodes)
+        return ProblemContext(
+            scenario_id="live_monitoring",
+            description="Live monitoring mode — Prometheus data source. No injected faults.",
+            services=services,
+        )
 
     def init_problem(self, scenario_id: str) -> ProblemContext:
         """Load scenario from registry, reset environment, return context."""

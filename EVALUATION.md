@@ -21,7 +21,7 @@ Random Agent               62%          12%       12%        62%   37.5%
 -----------------------------------------------------------------------------
 ```
 
-The **67-point gap** between the ML agent and static thresholds is the quantitative case for this architecture. A simple "CPU > 80% → restart" policy catches CPU saturation and parts of DDoS but fails catastrophically on transaction stalls (no metric exceeds any threshold), cascading failures (restarts the wrong service), and anomalous access (multivariate signal below any single threshold).
+The **67-point gap** between the ML agent and static thresholds reflects what threshold monitoring structurally cannot do. A simple "CPU > 80% → restart" policy catches CPU saturation and parts of DDoS but fails on transaction stalls (no metric exceeds any threshold), cascading failures (restarts the wrong service), and anomalous access (multivariate signal below any single threshold).
 
 ![Leaderboard Comparison](evaluation/results/plots/leaderboard_comparison.png)
 ![Per-Scenario Comparison](evaluation/results/plots/per_scenario_comparison.png)
@@ -89,24 +89,24 @@ python scripts/run_benchmark.py --train-profile baseline --eval-profile moderate
 
 Detection and mitigation hold; localization and diagnosis degrade when the evaluation distribution shifts (noise, propagation delays). This is expected — the agent was trained on baseline conditions. Production deployment would benefit from training on diverse profiles or online calibration.
 
-## Honest Analysis of Weaknesses
+## Limitations and Known Edge Cases
 
-**Anomalous access (Loc/Diag 62%)**: This is the hardest scenario by design — the signal is subtle (error_rate +3%, latency_p99 +40%) and overlaps with normal noise. In ~38% of episodes, the localizer picks the wrong service or the diagnosis misclassifies as "unknown" because the pattern overlaps with other fault signatures. *Next: per-service adaptive thresholds calibrated to historical baselines to reduce false positives.*
+**Anomalous access (Loc/Diag 62%)**: The hardest scenario by design — the signal is subtle (error_rate +3%, latency_p99 +40%) and overlaps with normal noise. In ~38% of episodes, the localizer picks the wrong service or diagnosis misclassifies as "unknown" due to pattern overlap. Per-service adaptive thresholds calibrated to historical baselines would reduce this.
 
-**Memory leak localization (Loc 92%)**: In 1 of 13 episodes, the localizer picks the wrong service because the memory increase in the first few minutes is smaller than normal cross-service metric variance. Memory leaks are inherently harder to localize early because the signal starts weak and grows over time. *Next: longer observation window or trend-weighted localization.*
+**Memory leak localization (Loc 92%)**: In 1 of 13 episodes, the localizer picks the wrong service because memory increase in the first few minutes falls within normal cross-service variance. Memory leaks are harder to localize early — the signal starts weak and grows over time. A trend-weighted localization or longer observation window would help.
 
-**Deployment regression diagnosis**: Now at 100% after uncertainty gate calibration. Previously, the gate intercepted high-confidence diagnoses and escalated to human before the rule policy could act. *Lesson: safety gates need calibration proportional to their score scales.*
+**Deployment regression diagnosis**: 100% after uncertainty gate calibration. Previously, the gate intercepted high-confidence diagnoses and escalated before the rule policy could act. Safety gates need calibration proportional to their score scales.
 
-**Transaction stall mitigation**: The agent correctly detects and localizes but can only alert — it cannot auto-fix business logic faults (deadlocks, broken consumers). *This is correct behavior*: the value is fast detection and escalation; autonomous remediation of unknown business state would be unsafe.
+**Transaction stall mitigation**: The agent detects and localizes correctly but can only alert — auto-fixing business logic faults (deadlocks, broken consumers) requires human context. This is intentional: fast detection and escalation is the right boundary; autonomous remediation of unknown business state would be unsafe.
 
 **Why baselines score what they do**:
 - *Static Threshold (30%)*: Catches CPU saturation (CPU > 80%) and partially catches DDoS (high latency triggers restart). Fails on all other scenarios — no single metric exceeds a fixed threshold for transaction stalls, memory leaks, or cascading failures.
 - *Random Agent (38%)*: Higher detection rate because it triggers on a looser threshold (CPU > 60% or error > 0.05), but random target and action selection means localization and diagnosis are near-chance.
 
-## What We Would Improve With More Time
+## Potential Extensions
 
-1. **Adaptive thresholds**: Currently all services share the same diagnostic thresholds. Per-service baselines (e.g., order-db normally runs at 60% memory while auth-service runs at 35%) would reduce false positives.
-2. **Multi-fault handling**: The current system assumes one fault at a time. Real incidents often involve concurrent failures (e.g., a deployment regression during a traffic spike).
+1. **Adaptive thresholds**: All services currently share the same diagnostic thresholds. Per-service baselines (e.g., order-db normally at 60% memory vs. auth-service at 35%) would reduce false positives.
+2. **Multi-fault handling**: The system assumes one fault at a time. Real incidents often involve concurrent failures (e.g., a deployment regression during a traffic spike).
 3. **Longer observation windows**: The agent acts quickly (~20-35 steps after fault onset) to minimize MTTR, but longer windows would improve diagnostic accuracy for subtle faults.
-4. **Production metric calibration**: The simulator's noise model and diurnal patterns are hand-tuned. Calibrating against real production telemetry would improve the realism of evaluation.
+4. **Production metric calibration**: The simulator's noise model and diurnal patterns are hand-tuned. Calibrating against real production telemetry would improve evaluation realism.
 5. **Online learning**: The current model is trained once on normal data. Continuous learning from resolved incidents would improve accuracy over time.

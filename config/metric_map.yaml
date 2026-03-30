@@ -1,0 +1,82 @@
+# Prometheus Metric Map
+#
+# Maps your Prometheus metric queries to the internal canonical names used by
+# the feature extractor, anomaly detector, and diagnoser.
+#
+# {service} is replaced with each service name for every query.
+#
+# Adjust service names, queries, and topology edges to match your deployment.
+# Mark business metrics (e.g. transactions_per_minute) as optional: true —
+# missing values fall back to 0.0 without error.
+
+services:
+  - api-gateway
+  - auth-service
+  - order-service
+  - user-db
+  - order-db
+
+metrics:
+
+  # CPU utilization (0–100%)
+  cpu_percent:
+    query: 'avg(rate(container_cpu_usage_seconds_total{container="{service}"}[1m])) * 100'
+    optional: false
+
+  # Memory utilization (0–100%) relative to container limit
+  memory_percent:
+    query: >
+      avg(container_memory_working_set_bytes{container="{service}"})
+      / avg(container_spec_memory_limit_bytes{container="{service}"})
+      * 100
+    optional: false
+
+  # Median request latency in milliseconds
+  latency_p50_ms:
+    query: >
+      histogram_quantile(0.5,
+        rate(http_request_duration_seconds_bucket{service="{service}"}[1m])
+      ) * 1000
+    optional: true
+
+  # P99 request latency in milliseconds
+  latency_p99_ms:
+    query: >
+      histogram_quantile(0.99,
+        rate(http_request_duration_seconds_bucket{service="{service}"}[1m])
+      ) * 1000
+    optional: true
+
+  # Error rate (0–1 fraction of 5xx responses)
+  error_rate:
+    query: >
+      rate(http_requests_total{service="{service}",status=~"5.."}[1m])
+      / rate(http_requests_total{service="{service}"}[1m])
+    optional: true
+
+  # Requests per second
+  request_rate:
+    query: 'rate(http_requests_total{service="{service}"}[1m])'
+    optional: true
+
+  # Disk I/O in MB/s
+  disk_io_mbps:
+    query: 'rate(container_fs_reads_bytes_total{container="{service}"}[1m]) / 1048576'
+    optional: true
+
+  # Business metric: transactions per minute.
+  # IMPORTANT: if this metric does not exist in your Prometheus, the diagnoser
+  # will see 0.0 for all services and may false-positive on transaction_stall.
+  # Either expose this metric from your application or remove it from this map.
+  transactions_per_minute:
+    query: 'rate(business_transactions_total{service="{service}"}[1m]) * 60'
+    optional: true
+
+# Service dependency graph.
+# Used by the root cause localizer to traverse upstream dependencies.
+# If unknown, leave empty and the agent will treat all services as independent.
+topology_edges:
+  - [api-gateway, auth-service]
+  - [api-gateway, order-service]
+  - [order-service, user-db]
+  - [order-service, order-db]

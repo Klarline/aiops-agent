@@ -399,6 +399,40 @@ async def compare_agents(req: CompareRequest):
     }
 
 
+@router.get("/calibration-status")
+async def get_calibration_status():
+    """Report online calibration state for live mode.
+
+    In simulated mode this returns mode=simulated and calibrated=N/A.
+    In live mode it tracks warmup progress and whether calibration completed
+    or was aborted (e.g., started during an active incident).
+    """
+    import os
+    aiops_mode = os.getenv("AIOPS_MODE", "simulated").lower()
+    if aiops_mode != "live":
+        return {"mode": "simulated", "calibrated": "n/a"}
+
+    orch = state.orchestrator
+    if orch is None:
+        return {"mode": "live", "calibrated": False, "message": "No active session"}
+
+    env = orch.env
+    calibrator = getattr(env, "_calibrator", None)
+    if calibrator is None:
+        return {"mode": "live", "calibrated": False, "message": "Calibrator not attached"}
+
+    status = calibrator.status()
+    return {
+        "mode": "live",
+        "calibrated": status.calibrated,
+        "aborted": status.aborted,
+        "abort_reason": status.abort_reason,
+        "steps_collected": status.steps_collected,
+        "warmup_steps": status.warmup_steps,
+        "steps_remaining": calibrator.steps_remaining,
+    }
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     """Live metric streaming. Send {scenario_id, seed?, speed_ms?, api_key?} to start.

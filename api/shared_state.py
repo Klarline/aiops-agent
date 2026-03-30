@@ -8,6 +8,7 @@ Phase C: Sessionized run state with per-run isolation and incident IDs.
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from typing import Any
@@ -65,19 +66,60 @@ class RunSession:
     def reset(self, scenario_id: str, seed: int = 42, incident_id: str | None = None):
         self.incident_id = incident_id or str(uuid.uuid4())
         ensemble = self.ensure_ensemble()
-        orch = Orchestrator(seed=seed)
-        ctx = orch.init_problem(scenario_id)
 
-        agent = AIOpsAgent()
-        agent.set_ensemble(ensemble)
+        aiops_mode = os.getenv("AIOPS_MODE", "simulated").lower()
 
-        self.orchestrator = orch
-        self.agent = agent
+        if aiops_mode == "live":
+            ctx = self._reset_live(ensemble)
+        else:
+            ctx = self._reset_simulated(scenario_id, seed, ensemble)
+
         self.running = True
         self.metrics_history = []
         self.anomaly_timeline = []
         self.detection_step = -1
         self._started_at = time.monotonic()
+        return ctx
+
+    def _reset_simulated(self, scenario_id: str, seed: int, ensemble: EnsembleDetector):
+        """Initialize a simulated scenario run."""
+        orch = Orchestrator(seed=seed)
+        ctx = orch.init_problem(scenario_id)
+        agent = AIOpsAgent()
+        agent.set_ensemble(ensemble)
+        self.orchestrator = orch
+        self.agent = agent
+        return ctx
+
+    def _reset_live(self, ensemble: EnsembleDetector):
+        """Initialize a live Prometheus monitoring run."""
+        from environments.prometheus_env import PrometheusEnvironment
+        from environments.metric_map import load_metric_map
+
+        prometheus_url = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
+        map_path = os.getenv("PROMETHEUS_METRIC_MAP", "config/metric_map.yaml")
+        scrape_interval = int(os.getenv("PROMETHEUS_SCRAPE_INTERVAL", "15"))
+
+        metric_map = load_metric_map(map_path)
+        env = PrometheusEnvironment(prometheus_url, metric_map, scrape_interval)
+
+        # Attach calibrator and action executor
+        warmup_steps = int(os.getenv("AIOPS_WARMUP_STEPS", "180"))
+        from environments.calibration import OnlineCalibrator
+        calibrator = OnlineCalibrator(ensemble, warmup_steps=warmup_steps)
+        env.attach_calibrator(calibrator)
+
+        from environments.action_executor_real import RealActionExecutor
+        executor = RealActionExecutor.from_env()
+        env.attach_action_executor(executor)
+
+        orch = Orchestrator(env=env)
+        ctx = orch.init_live()
+
+        agent = AIOpsAgent()
+        agent.set_ensemble(ensemble)
+        self.orchestrator = orch
+        self.agent = agent
         return ctx
 
     def step_once(self) -> dict[str, Any] | None:

@@ -88,6 +88,28 @@ Our detector catches this because the feature vector includes `transactions_per_
 
 Our orchestrator implements AIOpsLab's Agent-Cloud Interface (ACI) pattern: the agent receives `Observation` objects and returns `AgentAction` objects, with the orchestrator mediating all interaction. This clean separation means the agent code is infrastructure-agnostic — swapping the simulator for a real Kubernetes environment requires changing only the environment, not the agent.
 
+### 7. Environment Abstraction (BaseEnvironment)
+
+The ACI pattern is enforced through a `BaseEnvironment` abstract class in `environments/base.py`. Both `SimulatedEnvironment` and `PrometheusEnvironment` implement it. The interface surface is exactly the methods the orchestrator and agent tools call:
+
+```
+step() -> Observation | None
+get_current_metrics() -> dict[str, dict[str, float]]
+get_metrics_history(service, lookback_steps) -> pd.DataFrame
+execute_action(action, target, **kwargs) -> ActionResult
+get_topology() -> nx.DiGraph
+get_ground_truth() -> FaultScenario | None   # None in live mode
+is_resolved() -> bool                         # always False in live mode
+```
+
+**Why keep `Observation` and `ActionResult` in `environments/types.py` rather than `simulator/`?** Both environments produce and consume these types. Defining them in the simulator module would create a circular import when `PrometheusEnvironment` needs to produce `Observation` objects. Moving them to a neutral `environments/types.py` breaks the cycle while keeping backward compatibility via re-exports in `simulator/environment.py`.
+
+**How `PrometheusEnvironment` works:** On each `step()`, it fires one Prometheus instant query per canonical metric per service (`/api/v1/query`). On construction, it pre-fetches the last ~5 minutes of data via the range API (`/api/v1/query_range`) so the feature extractor has a lookback window immediately, without waiting for real-time scrape cycles. Metric names are mapped from Prometheus queries to the internal canonical names (`cpu_percent`, `transactions_per_minute`, etc.) via `config/metric_map.yaml`.
+
+**Live mode calibration (`environments/calibration.py`):** The ensemble was trained on simulated data. Score normalization (median and p99 of normal scores) is sim-specific. `OnlineCalibrator` collects the first N steps of live data, checks that fewer than 20% of them look anomalous (circuit breaker), then re-computes the normalization parameters on real data without retraining the underlying models. The IsolationForest partition structure is preserved — only the calibration is updated.
+
+**Drift detection (`environments/drift_detector.py`):** `MetricDriftMonitor` computes Population Stability Index (PSI) per feature between the training distribution and a window of live data. PSI > 0.2 (industry standard threshold) signals that the real traffic distribution has diverged enough that the model's learned patterns may no longer apply. Available via `GET /metrics/drift`.
+
 ---
 
 ## Feature Engineering
@@ -358,11 +380,11 @@ After `block_ip` executes:
 }
 ```
 
-The environment also appends a structured entry with timestamp and service. This provides a compliance-ready audit trail for FCT's handling of sensitive financial and legal data.
+The environment also appends a structured entry with timestamp and service. This provides a compliance-ready audit trail for regulated financial and legal data pipelines.
 
-### Why This Matters for FCT
+### Security Design Rationale
 
-Title insurance involves sensitive financial and legal data. A brute force attack on auth-service could lead to unauthorized access and regulatory exposure. The automated block plus audit trail demonstrates security-first design: fast response with full traceability for compliance review.
+Financial and transaction systems involve sensitive data subject to regulatory scrutiny. A brute force attack on auth-service could lead to unauthorized access and regulatory exposure. The automated block plus audit trail demonstrates security-first design: fast response with full traceability for compliance review.
 
 ---
 

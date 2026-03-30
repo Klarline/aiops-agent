@@ -19,7 +19,8 @@ from detection.explainer import ShapExplainer
 from diagnosis.localizer import ServiceLocalizer
 from diagnosis.diagnoser import FaultDiagnoser
 from knowledge_base.incident_store import IncidentStore
-from simulator.environment import SimulatedEnvironment, Observation
+from environments.base import BaseEnvironment
+from environments.types import Observation
 
 
 @dataclass
@@ -60,7 +61,7 @@ class ToolRegistry:
 
     def __init__(
         self,
-        env: SimulatedEnvironment,
+        env: BaseEnvironment,
         ensemble: EnsembleDetector,
         explainer: ShapExplainer | None,
         localizer: ServiceLocalizer,
@@ -267,9 +268,12 @@ class ToolRegistry:
                 "success": r.success, "message": r.message}
 
     def _block_ip(self, ip: str = "") -> dict:
-        if not ip and self.env.scenario:
-            ip = self.env.scenario.metadata.get("source_ip", "10.0.0.99")
-        target = self.env.scenario.target_service if self.env.scenario else ""
+        scenario = getattr(self.env, "scenario", None)
+        if not ip and scenario:
+            ip = scenario.metadata.get("source_ip", "10.0.0.99")
+        if not ip:
+            ip = "10.0.0.99"
+        target = scenario.target_service if scenario else ""
         r = self.env.execute_action("block_ip", target, ip=ip)
         return {"action": "block_ip", "ip": ip,
                 "success": r.success, "message": r.message}
@@ -280,7 +284,8 @@ class ToolRegistry:
                 "success": r.success, "message": r.message}
 
     def _alert_human(self, message: str = "") -> dict:
-        target = self.env.scenario.target_service if self.env.scenario else ""
+        scenario = getattr(self.env, "scenario", None)
+        target = scenario.target_service if scenario else ""
         r = self.env.execute_action("alert_human", target)
         return {"action": "alert_human", "message": message,
                 "success": r.success}
